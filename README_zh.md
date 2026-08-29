@@ -19,6 +19,9 @@ Pi Usage 是一个适用于 [Pi](https://github.com/earendil-works/pi-mono) 和 
 | Anthropic Claude | Claude OAuth 或 API Key | 订阅状态或 API 限流响应头 |
 | DeepSeek | API Key | 账户余额 |
 | GLM / 智谱 BigModel | API Key | Coding Plan 额度窗口；普通按量付费 Key 无法通过官方 API 查询 |
+| OpenRouter | API Key | 账户余额（总额度 - 已用额度） |
+| 硅基流动 SiliconFlow | API Key | 账户余额（充值余额 + 赠送余额） |
+| OpenCode Go | API Key | 5 小时、周、月滚动额度窗口 |
 | CLIProxyAPI | `pi-bridge` | 上游额度窗口和重置时间 |
 
 Pi Usage 复用 Pi 中已有的服务商认证。CLIProxyAPI 通过服务端 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 查询；插件不会读取或保存其 Management Key。
