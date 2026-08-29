@@ -2,7 +2,21 @@ import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts
 import { bridgeUrl, safeError, sameOriginFetch } from "../../../core/security.ts";
 import { isAccountRelevantToModels, isGroupRelevantToModels, deduplicateSharedQuotaGroups } from "../matching.ts";
 
-const NATIVE_PROVIDER_IDS = new Set(["deepseek", "openai-codex", "xai", "anthropic", "glm", "zai", "zai-coding-cn"]);
+const NATIVE_PROVIDER_IDS = new Set([
+  "deepseek",
+  "openai-codex",
+  "xai",
+  "anthropic",
+  "glm",
+  "zai",
+  "zai-coding-cn",
+  "siliconflow",
+  "siliconflow-en",
+  "siliconflow-cn",
+  "openrouter",
+  "opencode-go",
+  "opencode",
+]);
 
 type BridgeGroup = { id?: string; label?: string; remainingFraction?: number; resetTime?: string; models?: Array<{ id?: string; displayName?: string; remainingFraction?: number; resetTime?: string }> };
 type BridgeAccount = { provider?: string; account?: string; authIndex?: string; label?: string; status?: string; disabled?: boolean; unavailable?: boolean; supported?: boolean; error?: string; groups?: BridgeGroup[] };
@@ -35,7 +49,11 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
           url.origin.includes("chatgpt.com") ||
           url.origin.includes("anthropic.com") ||
           url.origin.includes("x.ai") ||
-          url.origin.includes("bigmodel.cn")
+          url.origin.includes("bigmodel.cn") ||
+          url.origin.includes("siliconflow.cn") ||
+          url.origin.includes("siliconflow.com") ||
+          url.origin.includes("openrouter.ai") ||
+          url.origin.includes("opencode.ai")
         ) {
           return false;
         }
