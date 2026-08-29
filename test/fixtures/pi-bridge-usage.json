@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-29T00:00:00Z",
+  "cache": { "updatedAt": "2026-08-29T00:00:00Z", "stale": false, "ttlMs": 120000 },
+  "accounts": [
+    {
+      "provider": "antigravity",
+      "account": "w***@example.com",
+      "authIndex": "ag-1",
+      "label": "w***@example.com",
+      "status": "active",
+      "supported": true,
+      "groups": [
+        { "id": "thinking-models", "label": "Thinking Models", "remainingFraction": 0.77, "resetTime": "2026-08-29T10:05:00Z" },
+        { "id": "pro-models", "label": "Pro Models", "remainingFraction": 0.9999994, "resetTime": "2026-08-29T10:37:00Z" },
+        { "id": "flash-models", "label": "Flash Models", "remainingFraction": 0.9999994, "resetTime": "2026-08-29T10:37:00Z" }
+      ]
+    },
+    {
+      "provider": "codex",
+      "account": "w***@example.com",
+      "authIndex": "codex-1",
+      "label": "w***@example.com",
+      "status": "active",
+      "supported": true,
+      "groups": [
+        { "id": "primary-window", "label": "5h Window", "remainingFraction": 0.39, "resetTime": "2026-08-29T10:00:00Z" },
+        { "id": "secondary-window", "label": "7d Window", "remainingFraction": 0.84, "resetTime": "2026-09-04T10:03:00Z" }
+      ]
+    }
+  ],
+  "unsupportedProviders": []
+}

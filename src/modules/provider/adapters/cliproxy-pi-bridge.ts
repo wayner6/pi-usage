@@ -1,0 +1,76 @@
+import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
+import { bridgeUrl, safeError, sameOriginFetch } from "../../../core/security.ts";
+
+type BridgeGroup = { id?: string; label?: string; remainingFraction?: number; resetTime?: string; models?: Array<{ id?: string; displayName?: string; remainingFraction?: number; resetTime?: string }> };
+type BridgeAccount = { provider?: string; account?: string; authIndex?: string; label?: string; status?: string; disabled?: boolean; unavailable?: boolean; supported?: boolean; error?: string; groups?: BridgeGroup[] };
+type BridgeUsage = { schemaVersion?: number; generatedAt?: string; cache?: { updatedAt?: string; stale?: boolean; ttlMs?: number }; accounts?: BridgeAccount[]; unsupportedProviders?: string[] };
+
+function metrics(groups: BridgeGroup[]): Metric[] {
+  return groups.flatMap((group, index) => {
+    const base = group.remainingFraction;
+    return typeof base === "number"
+      ? [{ kind: "quota-window" as const, id: group.id ?? `quota-${index}`, label: group.label ?? group.id ?? "Quota", remainingFraction: Math.min(1, Math.max(0, base)), ...(group.resetTime ? { resetAt: group.resetTime } : {}) }]
+      : [];
+  });
+}
+
+export const cliProxyBridgeAdapter: UsageAdapter = {
+  id: "cliproxy-pi-bridge",
+  label: "CLIProxyAPI / pi-bridge",
+  canHandle(target) {
+    // 1. If explicit baseUrl exists and is not official deepseek/openai, it's a potential bridge target
+    if (target.baseUrl) {
+      try {
+        const url = new URL(target.baseUrl);
+        if (url.origin.includes("deepseek.com")) return false;
+      } catch {
+        return false;
+      }
+    }
+    const pid = target.providerId.toLowerCase();
+    // 2. Accept if providerId hints at proxy/bridge or if any custom baseUrl is present
+    return pid.includes("cpa") || pid.includes("cliproxy") || pid.includes("bridge") || pid.includes("proxy") || Boolean(target.baseUrl);
+  },
+  async fetch({ target, signal, force, fetchFn }): Promise<UsageSnapshot> {
+    const fetchedAt = new Date().toISOString();
+    const apiKey = target.auth?.auth.apiKey;
+    const baseUrl = target.auth?.auth.baseUrl ?? target.baseUrl;
+    if (!baseUrl || !apiKey) return { adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId, state: "unauthorized", fetchedAt, accounts: [], error: "Missing base URL or API key" };
+    const origin = new URL(baseUrl).origin;
+    try {
+      const response = await sameOriginFetch(bridgeUrl(baseUrl, "usage", force), {
+        method: "GET",
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json", "X-Pi-Contract": "2" },
+        signal,
+      }, fetchFn, origin);
+      if (response.status === 404) return { adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId, state: "not-installed", fetchedAt, accounts: [], error: "pi-bridge usage endpoint was not found" };
+      if (response.status === 401 || response.status === 403) return { adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId, state: "unauthorized", fetchedAt, accounts: [], error: "The API key is not authorized for pi-bridge" };
+      if (!response.ok) throw new Error(`pi-bridge returned HTTP ${response.status}`);
+      const data = await response.json() as BridgeUsage;
+      if (data.schemaVersion !== 1) return { adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId, state: "incompatible", fetchedAt, accounts: [], error: `Unsupported pi-bridge schemaVersion ${String(data.schemaVersion)}` };
+      const accounts = (data.accounts ?? []).map((account, index) => ({
+        id: account.authIndex ?? `${account.provider ?? "provider"}-${index}`,
+        provider: account.provider ?? "unknown",
+        label: account.label || account.account || account.provider || `Account ${index + 1}`,
+        ...(account.status ? { status: account.status } : {}),
+        ...(account.disabled !== undefined ? { disabled: account.disabled } : {}),
+        ...(account.unavailable !== undefined ? { unavailable: account.unavailable } : {}),
+        metrics: metrics(account.groups ?? []),
+        rawGroups: account.groups,
+        ...(account.error ? { error: account.error } : {}),
+      }));
+      return {
+        adapterId: this.id,
+        sourceProviderId: target.providerId,
+        displayName: target.providerId,
+        state: accounts.length ? (data.cache?.stale ? "stale" : "ok") : "empty",
+        fetchedAt: data.cache?.updatedAt ?? data.generatedAt ?? fetchedAt,
+        ...(data.cache?.stale ? { stale: true } : {}),
+        accounts,
+        ...(data.unsupportedProviders?.length ? { diagnostic: `Unsupported upstream providers: ${data.unsupportedProviders.join(", ")}` } : {}),
+      };
+    } catch (error) {
+      throw new Error(safeError(error));
+    }
+  },
+};

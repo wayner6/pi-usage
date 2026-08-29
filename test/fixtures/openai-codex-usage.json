@@ -1,0 +1,28 @@
+{
+  "user_id": "user-test",
+  "account_id": "dddd6bf6-e6e5-4e5e-b2e1-61ded58c5710",
+  "email": "user@example.com",
+  "plan_type": "plus",
+  "rate_limit": {
+    "allowed": true,
+    "limit_reached": false,
+    "primary_window": {
+      "used_percent": 1,
+      "limit_window_seconds": 18000,
+      "reset_after_seconds": 16660,
+      "reset_at": 1788008289
+    },
+    "secondary_window": {
+      "used_percent": 22,
+      "limit_window_seconds": 604800,
+      "reset_after_seconds": 495770,
+      "reset_at": 1788487399
+    }
+  },
+  "credits": {
+    "has_credits": false,
+    "unlimited": false,
+    "overage_limit_reached": false,
+    "balance": "0"
+  }
+}

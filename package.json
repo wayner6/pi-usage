@@ -1,0 +1,29 @@
+{
+  "name": "pi-usage",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Provider balance and quota monitoring for Pi and pi-web",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["pi-package", "pi", "usage", "quota", "deepseek", "cliproxyapi"],
+  "files": ["index.ts", "src", "README.md", "LICENSE", "SECURITY.md"],
+  "pi": { "extensions": ["./index.ts"] },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "0.84.4",
+    "@earendil-works/pi-coding-agent": "0.84.4",
+    "@earendil-works/pi-tui": "0.84.4",
+    "@types/node": "^24.10.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "verify": "npm run check && npm test",
+    "pack:check": "npm pack --dry-run"
+  }
+}
