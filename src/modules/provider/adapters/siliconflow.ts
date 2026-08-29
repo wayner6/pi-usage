@@ -50,25 +50,41 @@ export const siliconFlowAdapter: UsageAdapter = {
       } catch {}
     }
     try {
-      const tryOrigins = origin === CN_ORIGIN ? [CN_ORIGIN, COM_ORIGIN] : [COM_ORIGIN, CN_ORIGIN];
-      let lastError: string | undefined;
+      // If target specifies or defaults to CN, do not blindly fallback to COM if CN deprecates it (avoids false 401)
+      const tryOrigins = origin === CN_ORIGIN ? [CN_ORIGIN] : [COM_ORIGIN];
       for (const tryOrigin of tryOrigins) {
         const response = await sameOriginFetch(new URL("/v1/user/info", tryOrigin), {
           method: "GET",
           headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
           signal,
         }, fetchFn, tryOrigin);
+        if (response.status === 410) {
+          return {
+            adapterId: this.id,
+            sourceProviderId: target.providerId,
+            displayName: "SiliconFlow",
+            state: "unsupported",
+            fetchedAt,
+            summary: "Active (balance API deprecated by SiliconFlow)",
+            accounts: [{
+              id: "siliconflow-account",
+              provider: "siliconflow",
+              label: "SiliconFlow",
+              status: "available",
+              metrics: [{
+                kind: "status",
+                id: "siliconflow-status",
+                label: "Status",
+                value: "Active · Official balance API deprecated",
+              }],
+            }],
+          };
+        }
         if (response.status === 401 || response.status === 403) {
-          if (tryOrigin === tryOrigins[tryOrigins.length - 1]) {
-            return { adapterId: this.id, sourceProviderId: target.providerId, displayName: "SiliconFlow", state: "unauthorized", fetchedAt, accounts: [], error: `SiliconFlow returned HTTP ${response.status} (api key invalid)` };
-          }
-          lastError = `HTTP ${response.status}`;
-          continue;
+          return { adapterId: this.id, sourceProviderId: target.providerId, displayName: "SiliconFlow", state: "unauthorized", fetchedAt, accounts: [], error: `SiliconFlow returned HTTP ${response.status} (api key invalid)` };
         }
         if (!response.ok) {
-          lastError = `HTTP ${response.status}`;
-          if (tryOrigin === tryOrigins[tryOrigins.length - 1]) throw new Error(`SiliconFlow returned HTTP ${response.status}`);
-          continue;
+          throw new Error(`SiliconFlow returned HTTP ${response.status}`);
         }
         const data = await response.json() as SiliconFlowResponse;
         const total = toNumber(data.data?.totalBalance);
@@ -103,7 +119,7 @@ export const siliconFlowAdapter: UsageAdapter = {
           }],
         };
       }
-      throw new Error(lastError || "SiliconFlow request failed");
+      throw new Error("SiliconFlow request failed");
     } catch (error) {
       throw new Error(safeError(error));
     }
