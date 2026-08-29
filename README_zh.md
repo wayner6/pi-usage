@@ -1,14 +1,10 @@
 # Pi Usage
 
-**为 [Pi](https://github.com/earendil-works/pi-mono) 与 pi-web 提供实时模型服务商余额、滑动配额窗口与速率限制监控。**
-
-[English Documentation](./README.md)
+**为 [Pi](https://github.com/earendil-works/pi-mono) 与 [pi-web](https://github.com/agegr/pi-web) 提供实时模型服务商余额、滑动配额窗口与速率限制监控。**
 
 ---
 
 ## 支持的模型商与连接认证方式
-
-按连接认证方式排序（OAuth 优先，其次为 API Key）：
 
 | 模型服务商 / 目标 | 认证方式 | 监控的额度 / 余额数据 |
 | :--- | :--- | :--- |
@@ -16,7 +12,7 @@
 | **xAI / Grok** | **OAuth** | OAuth 身份校验与扣费上限状态（Active / 达到 Spending Limit） |
 | **Anthropic Claude** | **OAuth** / **API Key** | Claude Pro/Max 订阅状态识别，或官方 API Key 响应头实时速率限制 |
 | **DeepSeek 官方直连** | **API Key** | 官方余额接口，展示人民币或美元总余额（含赠送额度与充值额度细分） |
-| **GLM / 智谱 BigModel** | **API Key** | GLM Coding Plan 5h/7d 窗口及 MCP 限额解析，普通 Key 识别为按量计费 |
+| **GLM / 智谱 BigModel** | **API Key** | GLM Coding Plan 5h/7d 窗口及 MCP 限额解析；若为普通按量付费则提示官方仅支持 Coding Plan 显示额度 |
 | **CLIProxyAPI 聚合代理** | **API Key / Bridge** | 通过服务端的轻量 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 插件，安全读取代理背后的上游分组配额与重置时间 |
 
 ---
@@ -38,8 +34,6 @@
 pi install github:wayner6/pi-usage
 ```
 
-*(本地开发亦可通过：`git clone https://github.com/wayner6/pi-usage.git && cd pi-usage && pi install .`)*
-
 ### 方式二：在 pi-web 网页端安装
 
 1. 点击左下角齿轮图标打开 **设置** -> **插件**。
@@ -48,7 +42,7 @@ pi install github:wayner6/pi-usage
    ```text
    git:https://github.com/wayner6/pi-usage
    ```
-4. 作用域选择 `global` 或 `project`，点击 **安装** 按钮即可。
+4. 作用域选择 `global`，点击 **安装** 按钮即可。
 
 ---
 
@@ -73,9 +67,7 @@ pi install github:wayner6/pi-usage
 | `/usage current` | 查看当前正在使用的模型服务商配额明细 |
 | `/usage refresh` | 强制立即发起网络请求刷新当前模型额度 |
 | `/usage doctor` | 一键诊断各服务商认证状态、适配器健康度与网络连通性 |
-| `/usage settings` | 查看或修改插件设置（状态栏开关、小部件开关、刷新间隔等） |
-
-### 快速个性化配置
+| `/usage settings` | 查看或修改插件设置（状态栏开关、小部件开关、刷新间隔等） |\n\n### 快速个性化配置
 
 在对话框中直接通过命令调整：
 ```text

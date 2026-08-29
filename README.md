@@ -1,6 +1,6 @@
 # Pi Usage
 
-**Real-time provider balances, quota windows, and rate limits for [Pi](https://github.com/earendil-works/pi-mono) and pi-web.**
+**Real-time provider balances, quota windows, and rate limits for [Pi](https://github.com/earendil-works/pi-mono) and [pi-web](https://github.com/agegr/pi-web).**
 
 [简体中文文档](./README_zh.md)
 
@@ -8,15 +8,13 @@
 
 ## Supported Providers & Authentication Types
 
-Providers are grouped by authentication method (OAuth first, followed by API Key):
-
 | Provider / Target | Auth Type | Monitored Quota / Balance Data |
 | :--- | :--- | :--- |
 | **OpenAI Codex** | **OAuth** (ChatGPT Plus / Pro) | Official 5-hour and 7-day sliding quota windows with reset countdowns |
 | **xAI / Grok** | **OAuth** | Identity verification and active spending/credit limit status probe |
 | **Anthropic Claude** | **OAuth** / **API Key** | Claude Pro/Max OAuth subscription detection or official API Key rate limits via headers |
 | **DeepSeek Direct** | **API Key** | Exact account monetary balance (granted + topped-up in CNY/USD) |
-| **GLM / 智谱 BigModel** | **API Key** | Coding Plan multi-tier sliding windows (5h, 7d, MCP) or Pay-as-you-go key identification |
+| **GLM / 智谱 BigModel** | **API Key** | Coding Plan multi-tier sliding windows (5h, 7d, MCP); notice displayed if using standard Pay-as-you-go key (official API only supports quota display for Coding Plan) |
 | **CLIProxyAPI Proxies** | **API Key / Bridge** | Upstream quota windows and reset intervals via server-side [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) |
 
 ---
@@ -38,8 +36,6 @@ Run the following command directly in your terminal:
 pi install github:wayner6/pi-usage
 ```
 
-*(Alternatively, for local development: `git clone https://github.com/wayner6/pi-usage.git && cd pi-usage && pi install .`)*
-
 ### Method 2: Install in pi-web (Web Interface)
 
 1. Open **Settings** (设置) at the bottom left -> **Plugins** (插件).
@@ -48,7 +44,7 @@ pi install github:wayner6/pi-usage
    ```text
    git:https://github.com/wayner6/pi-usage
    ```
-4. Choose `global` or `project` scope, then click **Install** (安装).
+4. Choose `global` scope, then click **Install** (安装).
 
 ---
 

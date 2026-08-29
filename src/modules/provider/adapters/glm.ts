@@ -262,9 +262,9 @@ export const glmAdapter: UsageAdapter = {
       metrics.push({
         kind: "status",
         id: "glm-plan-type",
-        label: "Plan",
-        value: "Pay-as-you-go",
-        detail: "Standard API Key (Active)",
+        label: "Notice",
+        value: "Quota display only supported for Coding Plan",
+        detail: "GLM official API does not provide quota/balance query for standard Pay-as-you-go keys",
       });
 
       return {
@@ -273,7 +273,7 @@ export const glmAdapter: UsageAdapter = {
         displayName: "GLM",
         state: "ok",
         fetchedAt,
-        summary: "GLM · Pay-as-you-go",
+        summary: "GLM · Coding Plan Only",
         accounts: [
           {
             id: "glm-payg-account",
