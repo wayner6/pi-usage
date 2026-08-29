@@ -57,6 +57,22 @@ git:https://github.com/wayner6/pi-usage
 
 安装或更新插件后，如果当前会话已经打开，请重载会话。
 
+## 更新
+
+在 Pi 终端中，只更新这个插件：
+
+```bash
+pi update npm:@wayner6/pi-usage
+```
+
+只更新全部已安装插件，不更新 Pi 本身：
+
+```bash
+pi update --extensions
+```
+
+在 pi-web 中：打开 **设置** → **插件**，选择 `npm:@wayner6/pi-usage`，点击 **更新**，然后使用 **重新加载会话**。
+
 ## 使用
 
 发送一条普通消息后，插件会刷新当前模型的额度，并更新状态栏。
@@ -89,6 +105,10 @@ git:https://github.com/wayner6/pi-usage
 ## 隐私
 
 插件不使用浏览器 Cookie、遥测、云同步或第三方凭据转发。对服务商 API 的请求始终发送至服务商官方域名。
+
+## 社区
+
+感谢 [LINUX DO](https://linux.do/) 社区提供交流与支持。
 
 ## 许可证
 

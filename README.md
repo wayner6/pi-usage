@@ -59,6 +59,22 @@ git:https://github.com/wayner6/pi-usage
 
 After installing or updating the plugin, reload the session if it is already open.
 
+## Update
+
+In Pi's terminal, update this plugin only:
+
+```bash
+pi update npm:@wayner6/pi-usage
+```
+
+To update all installed plugins without updating Pi itself:
+
+```bash
+pi update --extensions
+```
+
+In pi-web: open **Settings** → **Plugins**, select `npm:@wayner6/pi-usage`, choose **Update**, then use **Reload Session**.
+
 ## Use
 
 Send a normal message to refresh the quota for the active model. The status line then updates automatically.
@@ -91,6 +107,10 @@ Settings are stored locally at `~/.pi/agent/pi-usage/config.json`.
 ## Privacy
 
 The plugin does not use browser cookies, telemetry, cloud synchronization, or third-party credential forwarding. Requests to provider APIs stay on the provider's official origin.
+
+## Community
+
+Thanks to the [LINUX DO](https://linux.do/) community for discussion and support.
 
 ## License
 
