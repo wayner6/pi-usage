@@ -42,7 +42,7 @@ pi install github:wayner6/pi-usage
 
 ### Method 2: Install in pi-web (Web Interface)
 
-1. Open **Settings** (设置) -> **Plugins** (插件).
+1. Open **Settings** (设置) at the bottom left -> **Plugins** (插件).
 2. Click **+ Add Plugin** (添加插件).
 3. In the **Source** input box, enter:
    ```text
