@@ -33,7 +33,7 @@
 Run the following command directly in your terminal:
 
 ```bash
-pi install github:wayner6/pi-usage
+pi install npm:@wayner6/pi-usage
 ```
 
 ### Method 2: Install in pi-web (Web Interface)
@@ -41,9 +41,9 @@ pi install github:wayner6/pi-usage
 1. Open **Settings** (设置) at the bottom left -> **Plugins** (插件).
 2. Click **+ Add Plugin** (添加插件).
 3. In the **Source** input box, enter:
-   ```text
-   git:https://github.com/wayner6/pi-usage
-   ```
+```text
+npm:@wayner6/pi-usage
+```
 4. Choose `global` scope, then click **Install** (安装).
 
 ---

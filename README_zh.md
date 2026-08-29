@@ -31,7 +31,7 @@
 在命令行中直接运行：
 
 ```bash
-pi install github:wayner6/pi-usage
+pi install npm:@wayner6/pi-usage
 ```
 
 ### 方式二：在 pi-web 网页端安装
@@ -39,9 +39,9 @@ pi install github:wayner6/pi-usage
 1. 点击左下角齿轮图标打开 **设置** -> **插件**。
 2. 点击左下角 **+ 添加插件**。
 3. 在 **Source** 输入框中填入：
-   ```text
-   git:https://github.com/wayner6/pi-usage
-   ```
+```text
+npm:@wayner6/pi-usage
+```
 4. 作用域选择 `global`，点击 **安装** 按钮即可。
 
 ---

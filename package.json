@@ -1,7 +1,9 @@
 {
-  "name": "pi-usage",
+  "name": "@wayner6/pi-usage",
   "version": "0.1.0",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Provider balance and quota monitoring for Pi and pi-web",
   "type": "module",
   "license": "MIT",
