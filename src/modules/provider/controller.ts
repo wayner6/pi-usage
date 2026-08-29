@@ -75,17 +75,45 @@ export class ProviderUsageController {
   }
 
   async refreshAll(ctx: ExtensionContext, force = false): Promise<UsageSnapshot[]> {
-    const providerIds = new Set(ctx.modelRegistry.getAvailable().map((model) => model.provider));
-    for (const id of ctx.modelRegistry.getRegisteredProviderIds()) providerIds.add(id);
-    if (ctx.modelRegistry.getProviderAuthStatus("deepseek").configured) providerIds.add("deepseek");
-    if (ctx.modelRegistry.getProviderAuthStatus("openai-codex").configured) providerIds.add("openai-codex");
-    if (ctx.modelRegistry.getProviderAuthStatus("xai").configured) providerIds.add("xai");
-    if (ctx.modelRegistry.getProviderAuthStatus("anthropic").configured) providerIds.add("anthropic");
-    if (ctx.modelRegistry.getProviderAuthStatus("zai-coding-cn").configured) providerIds.add("zai-coding-cn");
-    if (ctx.modelRegistry.getProviderAuthStatus("zai").configured) providerIds.add("zai");
-    if (ctx.modelRegistry.getProviderAuthStatus("glm").configured) providerIds.add("glm");
-    for (const id of Object.keys(this.config.providerOverrides)) providerIds.add(id);
-    if (ctx.model) providerIds.add(ctx.model.provider);
+    const providerIds = new Set<string>();
+
+    // 1. Providers that have available models registered
+    for (const model of ctx.modelRegistry.getAvailable()) {
+      if (model.provider) providerIds.add(model.provider);
+    }
+
+    // 2. Providers explicitly registered or configured in auth
+    for (const id of ctx.modelRegistry.getRegisteredProviderIds()) {
+      // Only include if provider is actively configured with credentials
+      if (ctx.modelRegistry.getProviderAuthStatus(id).configured) {
+        providerIds.add(id);
+      }
+    }
+
+    // 3. Known standard providers with configured auth
+    const knownProviders = [
+      "deepseek",
+      "openai-codex",
+      "xai",
+      "anthropic",
+      "zai-coding-cn",
+      "zai",
+      "glm",
+    ];
+    for (const id of knownProviders) {
+      if (ctx.modelRegistry.getProviderAuthStatus(id).configured) {
+        providerIds.add(id);
+      }
+    }
+
+    // 4. Config overrides & active model provider
+    for (const id of Object.keys(this.config.providerOverrides)) {
+      providerIds.add(id);
+    }
+    if (ctx.model?.provider) {
+      providerIds.add(ctx.model.provider);
+    }
+
     const targets = await Promise.all([...providerIds].map((id) => this.target(ctx, id)));
     const snapshots = await Promise.all(targets.map((target) => this.fetchTarget(target, force)));
     return snapshots.filter((snapshot) => snapshot.state !== "unsupported");
