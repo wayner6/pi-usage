@@ -4,71 +4,58 @@
 
 [English Documentation](./README.md)
 
-Pi Usage 是一个可扩展且注重隐私保护的模型用量监控扩展。它能够在 Pi 终端 TUI 和 pi-web 网页界面中，实时显示当前模型的账户余额、多层级滑动配额窗口（如 5h/7d）以及订阅限制状态。
-
 ---
 
 ## 支持的模型商与连接认证方式
 
-Pi Usage 直接复用本地 Pi 环境中已配置的官方凭据（`~/.pi/agent/auth.json` 与 `models.json`），无需二次输入密码：
+按连接认证方式排序（OAuth 优先，其次为 API Key）：
 
 | 模型服务商 / 目标 | 认证方式 | 监控的额度 / 余额数据 |
 | :--- | :--- | :--- |
-| **OpenAI Codex** | **OAuth** (ChatGPT Plus / Pro) | 调用官方 `wham/usage` 接口，同时展示 5 小时与 7 天滑动配额窗口及重置倒计时 |
-| **DeepSeek 官方直连** | **API Key** | 官方余额接口，展示人民币或美元总余额，细分赠送额度与充值额度 |
-| **xAI / Grok** | **OAuth** | 校验 OAuth 用户身份与探测扣费/限额状态（Active / 达到 Spending Limit） |
-| **Anthropic Claude** | **OAuth 与 API Key** | 双模式支持：Claude Pro/Max OAuth 订阅状态识别，或官方 API Key 响应头实时速率限制 |
-| **GLM / 智谱 BigModel** | **API Key** | 双模式支持：GLM Coding Plan 5h/7d 窗口及 MCP 限额解析，普通 API Key 识别为按量计费 |
+| **OpenAI Codex** | **OAuth** (ChatGPT Plus / Pro) | 官方 5 小时与 7 天多层级滑动配额窗口及重置倒计时 |
+| **xAI / Grok** | **OAuth** | OAuth 身份校验与扣费上限状态（Active / 达到 Spending Limit） |
+| **Anthropic Claude** | **OAuth** / **API Key** | Claude Pro/Max 订阅状态识别，或官方 API Key 响应头实时速率限制 |
+| **DeepSeek 官方直连** | **API Key** | 官方余额接口，展示人民币或美元总余额（含赠送额度与充值额度细分） |
+| **GLM / 智谱 BigModel** | **API Key** | GLM Coding Plan 5h/7d 窗口及 MCP 限额解析，普通 Key 识别为按量计费 |
 | **CLIProxyAPI 聚合代理** | **API Key / Bridge** | 通过服务端的轻量 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 插件，安全读取代理背后的上游分组配额与重置时间 |
 
 ---
 
 ## 核心功能
 
-- **多窗口配额聚合展示**：原生支持同一模型家族多周期配额并排显示（例如 `Codex 5h 92% · 7d 85%` 或 `GLM 5h 100% · 7d 98%`）。
-- **动态跟随模型**：底部状态栏紧凑跟随当前正在使用的模型切换。
-- **通用模糊模型匹配**：智能识别带有自定义前缀或别名的模型（如 `my-proxy/gemini-2.5`、`claude-3.7-custom`），纯数据驱动打分，无需手动硬编码。
-- **安全与隐私保护**：
-  - 零浏览器 Cookie 拦截、零遥测、无第三方云端上传。
-  - 绝不索取、存储 CLIProxyAPI 管理密钥。
-  - 严格限制同源请求与重定向凭据保护。
-  - 网络或接口异常绝不误报为 0% 额度。
+- **实时配额与多窗口监控**：自动跟踪当前活动模型的账户余额、订阅状态与多周期滑动窗口（如 `Codex 5h 92% · 7d 85%`）。
+- **隐私与安全第一**：零 Cookie、零遥测、无第三方云端中转，严格基于同源策略复用本地 Pi 已配置的官方凭据。
 
 ---
 
 ## 安装教程
 
-### 前置要求
-- 已安装并配置好 [Pi Coding Agent](https://github.com/earendil-works/pi-mono) (`pi`)。
+### 方式一：在 Pi 终端安装 (CLI / TUI)
 
-### 方式一：从 GitHub 直接安装（推荐）
+在命令行中直接运行：
+
 ```bash
 pi install github:wayner6/pi-usage
 ```
 
-### 方式二：本地开发安装
-克隆代码库到本地，安装依赖并注册到 Pi：
-```bash
-git clone https://github.com/wayner6/pi-usage.git
-cd pi-usage
-npm install
-npm run verify
+*(本地开发亦可通过：`git clone https://github.com/wayner6/pi-usage.git && cd pi-usage && pi install .`)*
 
-# 安装至 Pi 全局扩展：
-pi install .
+### 方式二：在 pi-web 网页端安装
 
-# 或者仅在当前会话临时加载测试：
-pi -e .
-```
-
-*如果使用 **pi-web**，只需确保在 pi-web 运行的 Pi 环境中安装了本扩展，启动或重启 pi-web 即可。*
+1. 点击网页右上角打开 **设置** -> **插件**。
+2. 点击左下角 **+ 添加插件**。
+3. 在 **Source** 输入框中填入：
+   ```text
+   git:https://github.com/wayner6/pi-usage
+   ```
+4. 作用域选择 `global` 或 `project`，点击 **安装** 按钮即可。
 
 ---
 
 ## 使用教程与刷新机制
 
 ### 实时刷新机制说明
-1. **对话开始后自动流式刷新（最省心）**：
+1. **对话开始后自动流式刷新**：
    - 无论在命令行还是网页端，**只要发起对话（发送任意消息），底部状态栏便会自动流式更新为当前模型的最新额度**。
 2. **在 pi-web 中切换模型后的显示机制**：
    - 在 `pi-web` 网页端中，空闲时切换模型属于前端静默操作。底部的配额会在**你发送下一句对话时立即自动更新为新模型的配额**。
