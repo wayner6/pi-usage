@@ -50,6 +50,7 @@ export interface ProviderTarget {
   provider?: Provider<Api>;
   baseUrl?: string;
   auth?: AuthResult;
+  configuredModelIds?: string[];
 }
 
 export interface FetchContext {

@@ -1,5 +1,8 @@
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
 import { bridgeUrl, safeError, sameOriginFetch } from "../../../core/security.ts";
+import { isAccountRelevantToModels } from "../matching.ts";
+
+const NATIVE_PROVIDER_IDS = new Set(["deepseek", "openai-codex", "xai", "anthropic", "glm", "zai", "zai-coding-cn"]);
 
 type BridgeGroup = { id?: string; label?: string; remainingFraction?: number; resetTime?: string; models?: Array<{ id?: string; displayName?: string; remainingFraction?: number; resetTime?: string }> };
 type BridgeAccount = { provider?: string; account?: string; authIndex?: string; label?: string; status?: string; disabled?: boolean; unavailable?: boolean; supported?: boolean; error?: string; groups?: BridgeGroup[] };
@@ -18,17 +21,30 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
   id: "cliproxy-pi-bridge",
   label: "CLIProxyAPI / pi-bridge",
   canHandle(target) {
-    // 1. If explicit baseUrl exists and is not official deepseek/openai, it's a potential bridge target
+    const pid = target.providerId.toLowerCase();
+    // Never hijack standard native providers unless explicitly configured as a bridge proxy
+    if (NATIVE_PROVIDER_IDS.has(pid)) return false;
+
+    // If explicit baseUrl exists, make sure it's not pointing to official provider APIs
     if (target.baseUrl) {
       try {
         const url = new URL(target.baseUrl);
-        if (url.origin.includes("deepseek.com")) return false;
+        if (
+          url.origin.includes("deepseek.com") ||
+          url.origin.includes("openai.com") ||
+          url.origin.includes("chatgpt.com") ||
+          url.origin.includes("anthropic.com") ||
+          url.origin.includes("x.ai") ||
+          url.origin.includes("bigmodel.cn")
+        ) {
+          return false;
+        }
       } catch {
         return false;
       }
     }
-    const pid = target.providerId.toLowerCase();
-    // 2. Accept if providerId hints at proxy/bridge or if any custom baseUrl is present
+
+    // Accept if providerId hints at proxy/bridge or if any custom non-native baseUrl is present
     return pid.includes("cpa") || pid.includes("cliproxy") || pid.includes("bridge") || pid.includes("proxy") || Boolean(target.baseUrl);
   },
   async fetch({ target, signal, force, fetchFn }): Promise<UsageSnapshot> {
@@ -48,7 +64,7 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
       if (!response.ok) throw new Error(`pi-bridge returned HTTP ${response.status}`);
       const data = await response.json() as BridgeUsage;
       if (data.schemaVersion !== 1) return { adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId, state: "incompatible", fetchedAt, accounts: [], error: `Unsupported pi-bridge schemaVersion ${String(data.schemaVersion)}` };
-      const accounts = (data.accounts ?? []).map((account, index) => ({
+      let accounts = (data.accounts ?? []).map((account, index) => ({
         id: account.authIndex ?? `${account.provider ?? "provider"}-${index}`,
         provider: account.provider ?? "unknown",
         label: account.label || account.account || account.provider || `Account ${index + 1}`,
@@ -59,6 +75,12 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
         rawGroups: account.groups,
         ...(account.error ? { error: account.error } : {}),
       }));
+
+      // Filter accounts based on user-configured models for this provider in Pi
+      if (target.configuredModelIds && target.configuredModelIds.length > 0) {
+        accounts = accounts.filter((account) => isAccountRelevantToModels(account, target.configuredModelIds));
+      }
+
       return {
         adapterId: this.id,
         sourceProviderId: target.providerId,

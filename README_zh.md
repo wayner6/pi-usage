@@ -1,85 +1,95 @@
 # Pi Usage
 
-**为 [Pi](https://github.com/earendil-works/pi-mono) 与 [pi-web](https://github.com/agegr/pi-web) 提供实时模型服务商余额、滑动配额窗口与速率限制监控。**
+Pi Usage 是一个适用于 [Pi](https://github.com/earendil-works/pi-mono) 和 [pi-web](https://github.com/agegr/pi-web) 的插件，用于显示当前模型所属服务商的余额或额度。
 
----
+## 能看到什么
 
-## 支持的模型商与连接认证方式
+- 当前模型的简洁状态栏，例如：`Codex · 5h 92% · 7d 85%`。
+- 服务商公开提供的剩余额度、限流窗口和重置时间。
+- 通过 `/usage` 查看所有已配置服务商的详细信息。
 
-| 模型服务商 / 目标 | 认证方式 | 监控的额度 / 余额数据 |
-| :--- | :--- | :--- |
-| **OpenAI Codex** | **OAuth** (ChatGPT Plus / Pro) | 官方 5 小时与 7 天多层级滑动配额窗口及重置倒计时 |
-| **xAI / Grok** | **OAuth** | OAuth 身份校验与扣费上限状态（Active / 达到 Spending Limit） |
-| **Anthropic Claude** | **OAuth** / **API Key** | Claude Pro/Max 订阅状态识别，或官方 API Key 响应头实时速率限制 |
-| **DeepSeek 官方直连** | **API Key** | 官方余额接口，展示人民币或美元总余额（含赠送额度与充值额度细分） |
-| **GLM / 智谱 BigModel** | **API Key** | GLM Coding Plan 5h/7d 窗口及 MCP 限额解析；若为普通按量付费则提示官方仅支持 Coding Plan 显示额度 |
-| **CLIProxyAPI 聚合代理** | **API Key / Bridge** | 通过服务端的轻量 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 插件，安全读取代理背后的上游分组配额与重置时间 |
+显示会随当前模型切换。请求失败时不会被错误显示为余额或额度为零。
 
----
+## 支持的服务商
 
-## 核心功能
+| 服务商 | 认证方式 | 可显示的信息 |
+| --- | --- | --- |
+| OpenAI Codex | ChatGPT Plus/Pro OAuth | 5 小时、7 天额度窗口 |
+| xAI / Grok | OAuth | 账户验证和消费限额状态 |
+| Anthropic Claude | Claude OAuth 或 API Key | 订阅状态或 API 限流响应头 |
+| DeepSeek | API Key | 账户余额 |
+| GLM / 智谱 BigModel | API Key | Coding Plan 额度窗口；普通按量付费 Key 无法通过官方 API 查询 |
+| CLIProxyAPI | `pi-bridge` | 上游额度窗口和重置时间 |
 
-- **实时配额与多窗口监控**：自动跟踪当前活动模型的账户余额、订阅状态与多周期滑动窗口（如 `Codex 5h 92% · 7d 85%`）。
-- **隐私与安全第一**：零 Cookie、零遥测、无第三方云端中转，严格基于同源策略复用本地 Pi 已配置的官方凭据。
+Pi Usage 复用 Pi 中已有的服务商认证。CLIProxyAPI 通过服务端 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 查询；插件不会读取或保存其 Management Key。
 
----
+## 安装
 
-## 安装教程
+任选一种安装来源。
 
-### 方式一：在 Pi 终端安装 (CLI / TUI)
+### npm 安装
 
-在命令行中直接运行：
+在 Pi 终端中执行：
 
 ```bash
 pi install npm:@wayner6/pi-usage
 ```
 
-### 方式二：在 pi-web 网页端安装
+在 pi-web 中：打开 **设置** → **插件** → **添加插件**，在 **Source** 中填入以下内容，作用域选择 `global`，然后点击 **安装**：
 
-1. 点击左下角齿轮图标打开 **设置** -> **插件**。
-2. 点击左下角 **+ 添加插件**。
-3. 在 **Source** 输入框中填入：
 ```text
 npm:@wayner6/pi-usage
 ```
-4. 作用域选择 `global`，点击 **安装** 按钮即可。
 
----
+### GitHub 安装
 
-## 使用教程与刷新机制
+在 Pi 终端中执行：
 
-### 实时刷新机制说明
-1. **对话开始后自动流式刷新**：
-   - 无论在命令行还是网页端，**只要发起对话（发送任意消息），底部状态栏便会自动流式更新为当前模型的最新额度**。
-2. **在 pi-web 中切换模型后的显示机制**：
-   - 在 `pi-web` 网页端中，空闲时切换模型属于前端静默操作。底部的配额会在**你发送下一句对话时立即自动更新为新模型的配额**。
-   - 如果你在尚未发送消息前就希望立即看到新模型额度，也可以**手动点击会话菜单里的“重载会话”（Reload Session）按钮**，状态栏将瞬间刷新。
-3. **后台定时刷新**：
-   - 插件默认在后台定期轮询（默认每 120 秒一次），保持配额倒计时与剩余比例的准时更新。
-
-### 常用命令
-
-在对话输入框中输入 `/usage` 或 `/quota`：
-
-| 指令 | 说明 |
-| :--- | :--- |
-| `/usage` | 弹窗展示所有已配置服务商的额度与余额明细 |
-| `/usage current` | 查看当前正在使用的模型服务商配额明细 |
-| `/usage refresh` | 强制立即发起网络请求刷新当前模型额度 |
-| `/usage doctor` | 一键诊断各服务商认证状态、适配器健康度与网络连通性 |
-| `/usage settings` | 查看或修改插件设置（状态栏开关、小部件开关、刷新间隔等） |\n\n### 快速个性化配置
-
-在对话框中直接通过命令调整：
-```text
-/usage settings status on|off       # 开启/关闭底部紧凑状态栏 (默认: 开启)
-/usage settings widget on|off       # 开启/关闭编辑框下方详细小部件 (默认: 关闭)
-/usage settings interval <秒数>     # 修改后台轮询间隔秒数 (默认: 120 秒)
-/usage settings timeout <秒数>      # 修改网络请求超时时间 (默认: 10 秒)
+```bash
+pi install github:wayner6/pi-usage
 ```
-所有配置会自动持久化保存至 `~/.pi/agent/pi-usage/config.json`。
 
----
+在 pi-web 中：打开 **设置** → **插件** → **添加插件**，在 **Source** 中填入以下内容，作用域选择 `global`，然后点击 **安装**：
 
-## 开源许可
+```text
+git:https://github.com/wayner6/pi-usage
+```
 
-基于 MIT License 协议开源。详见 [LICENSE](./LICENSE) 文件。
+安装或更新插件后，如果当前会话已经打开，请重载会话。
+
+## 使用
+
+发送一条普通消息后，插件会刷新当前模型的额度，并更新状态栏。
+
+在 pi-web 中，空闲时切换模型会在发送下一条消息后生效并更新状态栏。如需立即刷新，请使用 **重载会话**。
+
+在对话输入框中使用以下命令：
+
+| 命令 | 作用 |
+| --- | --- |
+| `/usage` 或 `/quota` | 查看全部可用服务商的余额和额度 |
+| `/usage current` | 只查看当前模型所属服务商 |
+| `/usage refresh` | 立即刷新当前服务商 |
+| `/usage doctor` | 查看认证、适配器和桥接服务诊断信息 |
+| `/usage settings` | 查看当前插件设置 |
+
+## 设置
+
+设置为可选项。在对话框中输入 `/usage settings`，再使用以下命令：
+
+```text
+/usage settings status on|off       # 底部状态栏，默认开启
+/usage settings widget on|off       # 详细小部件，默认关闭
+/usage settings interval <秒数>     # 刷新间隔，默认 120 秒
+/usage settings timeout <秒数>      # 请求超时，默认 10 秒
+```
+
+配置仅保存在本地：`~/.pi/agent/pi-usage/config.json`。
+
+## 隐私
+
+插件不使用浏览器 Cookie、遥测、云同步或第三方凭据转发。对服务商 API 的请求始终发送至服务商官方域名。
+
+## 许可证
+
+[MIT](./LICENSE)

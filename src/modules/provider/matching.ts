@@ -226,3 +226,67 @@ export function matchModelGroup(
   const res = matchModelAcrossAccounts([{ rawGroups: groups }], modelId);
   return res?.quota;
 }
+
+/**
+ * Determines whether a proxy account (e.g. from pi-bridge) is relevant to the models
+ * actually configured by the user for this provider in Pi.
+ * If configuredModelIds is empty or omitted, all accounts are considered relevant.
+ */
+export function isAccountRelevantToModels(
+  account: { provider?: string; rawGroups?: unknown },
+  configuredModelIds?: string[],
+): boolean {
+  if (!configuredModelIds || configuredModelIds.length === 0) return true;
+
+  const targetTokens = new Set(configuredModelIds.flatMap(tokenizeModelId));
+  const groups = Array.isArray(account.rawGroups) ? (account.rawGroups as RawBridgeGroup[]) : [];
+  const provTokens = tokenizeModelId(account.provider ?? "");
+
+  // 1. Direct provider match or overlap with configured model tokens
+  // E.g. account.provider === "codex" vs models having "codex", or "antigravity" vs "gemini"/"claude"
+  const provNormalized = (account.provider ?? "").toLowerCase();
+  for (const mid of configuredModelIds) {
+    const mLower = mid.toLowerCase();
+    if (provNormalized && (mLower.includes(provNormalized) || provNormalized.includes(mLower))) {
+      return true;
+    }
+  }
+
+  // Check token intersection with account provider
+  if (provTokens.some((t) => targetTokens.has(t))) return true;
+
+  // 2. Check groups and their inner models
+  const modelKeywords = [
+    "claude", "gemini", "codex", "gpt", "openai", "deepseek", "kimi", "moonshot", "grok", "xai",
+    "thinking", "flash", "pro", "opus", "sonnet", "haiku", "turbo", "mini", "reasoning", "antigravity",
+  ];
+  for (const group of groups) {
+    const gTokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
+    const gOverlap = gTokens.filter((t) => targetTokens.has(t));
+    if (gOverlap.some((t) => modelKeywords.includes(t)) || gOverlap.length >= 2) return true;
+
+    for (const m of group.models ?? []) {
+      const mid = (m.id ?? "").trim().toLowerCase();
+      if (!mid) continue;
+
+      for (const targetId of configuredModelIds) {
+        const tid = targetId.trim().toLowerCase();
+        if (mid === tid || tid.includes(mid) || mid.includes(tid)) return true;
+
+        const mTokens = tokenizeModelId(mid);
+        const overlap = mTokens.filter((t) => targetTokens.has(t));
+        if (overlap.length >= 2 || overlap.some((t) => modelKeywords.includes(t))) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // 3. Provider abbreviation match (e.g. "ag-" models vs "antigravity" provider)
+  if (provNormalized === "antigravity" && configuredModelIds.some((id) => id.toLowerCase().startsWith("ag-"))) {
+    return true;
+  }
+
+  return false;
+}
+

@@ -22,16 +22,30 @@ export class ProviderUsageController {
 
   setConfig(config: UsageConfig): void { this.config = config; }
 
-  async target(ctx: ExtensionContext, providerId: string, model = ctx.model): Promise<ProviderTarget> {
+  async target(ctx: ExtensionContext, providerId: string, model?: Model<Api>): Promise<ProviderTarget> {
     const provider = ctx.modelRegistry.getProvider(providerId);
     const auth = await ctx.modelRegistry.getProviderAuth(providerId);
-    const baseUrl = auth?.auth.baseUrl ?? model?.baseUrl ?? provider?.baseUrl;
+
+    // Only associate the active model if it actually belongs to this provider!
+    const activeModel = model ?? ctx.model;
+    const matchedModel = activeModel?.provider?.toLowerCase() === providerId.toLowerCase() ? activeModel : undefined;
+
+    // Base URL resolution: NEVER inherit baseUrl from a foreign provider's model!
+    const baseUrl = auth?.auth.baseUrl ?? matchedModel?.baseUrl ?? provider?.baseUrl;
+
+    // Collect all models configured in Pi under this specific provider
+    const allModels = ctx.modelRegistry.getAll();
+    const configuredModelIds = allModels
+      .filter((m) => m.provider?.toLowerCase() === providerId.toLowerCase())
+      .map((m) => m.id);
+
     return {
       providerId,
-      ...(model?.provider === providerId ? { model } : {}),
+      ...(matchedModel ? { model: matchedModel } : {}),
       ...(provider ? { provider } : {}),
       ...(auth ? { auth } : {}),
       ...(baseUrl ? { baseUrl } : {}),
+      ...(configuredModelIds.length ? { configuredModelIds } : {}),
     };
   }
 

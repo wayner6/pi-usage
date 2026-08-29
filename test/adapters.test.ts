@@ -7,7 +7,7 @@ import { openAICodexAdapter } from "../src/modules/provider/adapters/openai-code
 import { xaiAdapter } from "../src/modules/provider/adapters/xai.ts";
 import { anthropicAdapter } from "../src/modules/provider/adapters/anthropic.ts";
 import { glmAdapter } from "../src/modules/provider/adapters/glm.ts";
-import { matchModelAcrossAccounts, matchModelGroup } from "../src/modules/provider/matching.ts";
+import { matchModelAcrossAccounts, matchModelGroup, isAccountRelevantToModels } from "../src/modules/provider/matching.ts";
 import { DEFAULT_CONFIG } from "../src/core/config.ts";
 
 const fixture = async (name: string) => readFile(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
@@ -241,4 +241,74 @@ test("universal matching works with arbitrary user prefixes and arbitrary provid
   assert.equal(m4.quota.multiWindows?.length, 2);
   assert.equal(Math.round(m4.quota.multiWindows[0]!.remainingFraction * 100), 99);
   assert.equal(Math.round(m4.quota.multiWindows[1]!.remainingFraction * 100), 77);
+});
+
+test("isAccountRelevantToModels filters out unused proxy accounts according to user configured models", () => {
+  const antigravityAccount = {
+    provider: "antigravity",
+    rawGroups: [
+      {
+        id: "thinking-models",
+        label: "Thinking Models",
+        models: [{ id: "claude-opus-4-6-thinking" }],
+      },
+      {
+        id: "flash-models",
+        label: "Flash Models",
+        models: [{ id: "gemini-3.7-flash" }],
+      },
+    ],
+  };
+
+  const codexAccount = {
+    provider: "codex",
+    rawGroups: [
+      {
+        id: "primary-window",
+        label: "5h Window",
+        models: [{ id: "primary-window" }],
+      },
+    ],
+  };
+
+  // User only configured Claude and Gemini under MyCPA
+  const configuredModels = ["ag-claude-opus-4-6-thinking", "ag-gemini-3.7-flash-high"];
+
+  assert.equal(isAccountRelevantToModels(antigravityAccount, configuredModels), true);
+  assert.equal(isAccountRelevantToModels(codexAccount, configuredModels), false);
+
+  // If user also adds a codex model, codexAccount becomes relevant
+  assert.equal(isAccountRelevantToModels(codexAccount, [...configuredModels, "ag-codex"]), true);
+
+  // If user didn't configure explicit models (empty array or undefined), keep all accounts
+  assert.equal(isAccountRelevantToModels(codexAccount, []), true);
+  assert.equal(isAccountRelevantToModels(codexAccount, undefined), true);
+});
+
+test("cliproxy bridge adapter filters accounts when configuredModelIds are supplied", async () => {
+  const body = await fixture("pi-bridge-usage.json");
+  const snapshot = await cliProxyBridgeAdapter.fetch({
+    target: {
+      providerId: "MyCPA",
+      baseUrl: "https://cpa.example.com/v1",
+      auth: auth(),
+      configuredModelIds: ["ag-claude-opus-4-6-thinking", "ag-gemini-3.7-flash-high"],
+    },
+    signal: new AbortController().signal,
+    force: false,
+    fetchFn: async () => new Response(body, { status: 200, headers: { "content-type": "application/json" } }),
+  });
+
+  assert.equal(snapshot.state, "ok");
+  // The fixture contains antigravity and codex. Codex should be filtered out!
+  assert.equal(snapshot.accounts.length, 1);
+  assert.equal(snapshot.accounts[0]?.provider, "antigravity");
+});
+
+test("cliproxy bridge adapter rejects native providers like deepseek even if baseUrl is present", () => {
+  assert.equal(cliProxyBridgeAdapter.canHandle({ providerId: "deepseek", baseUrl: "https://api.deepseek.com" }), false);
+  assert.equal(cliProxyBridgeAdapter.canHandle({ providerId: "openai-codex" }), false);
+  assert.equal(cliProxyBridgeAdapter.canHandle({ providerId: "anthropic" }), false);
+  assert.equal(cliProxyBridgeAdapter.canHandle({ providerId: "xai" }), false);
+  assert.equal(cliProxyBridgeAdapter.canHandle({ providerId: "glm" }), false);
 });
