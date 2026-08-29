@@ -63,9 +63,9 @@ export const siliconFlowAdapter: UsageAdapter = {
             adapterId: this.id,
             sourceProviderId: target.providerId,
             displayName: "SiliconFlow",
-            state: "unsupported",
+            state: "ok",
             fetchedAt,
-            summary: "Active (balance API deprecated by SiliconFlow)",
+            summary: "SiliconFlow · Active",
             accounts: [{
               id: "siliconflow-account",
               provider: "siliconflow",
