@@ -8,7 +8,6 @@ import { xaiAdapter } from "../src/modules/provider/adapters/xai.ts";
 import { anthropicAdapter } from "../src/modules/provider/adapters/anthropic.ts";
 import { glmAdapter } from "../src/modules/provider/adapters/glm.ts";
 import { openRouterAdapter } from "../src/modules/provider/adapters/openrouter.ts";
-import { siliconFlowAdapter } from "../src/modules/provider/adapters/siliconflow.ts";
 import { openCodeGoAdapter } from "../src/modules/provider/adapters/opencode-go.ts";
 import { matchModelAcrossAccounts, matchModelGroup, isAccountRelevantToModels } from "../src/modules/provider/matching.ts";
 import { DEFAULT_CONFIG } from "../src/core/config.ts";
@@ -327,20 +326,6 @@ test("openrouter adapter parses credits", async () => {
   assert.equal(snapshot.summary, "Balance $37.66");
 });
 
-test("siliconflow adapter parses user info", async () => {
-  const body = await fixture("siliconflow-userinfo.json");
-  const snapshot = await siliconFlowAdapter.fetch({
-    target: { providerId: "siliconflow", baseUrl: "https://api.siliconflow.cn/v1", auth: auth() },
-    signal: new AbortController().signal,
-    force: false,
-    fetchFn: async () => new Response(body, { status: 200, headers: { "content-type": "application/json" } }),
-  });
-  assert.equal(snapshot.state, "ok");
-  assert.equal(snapshot.displayName, "SiliconFlow");
-  assert.equal((snapshot.accounts[0]?.metrics[0] as any).amount, 42.5);
-  assert.equal(snapshot.summary, "Balance ¥42.50");
-});
-
 test("opencode-go adapter parses usage windows", async () => {
   const body = await fixture("opencode-go-usage.json");
   const snapshot = await openCodeGoAdapter.fetch({
@@ -359,8 +344,6 @@ test("opencode-go adapter parses usage windows", async () => {
 
 test("new adapters canHandle correctly", () => {
   assert.equal(openRouterAdapter.canHandle({ providerId: "openrouter" }), true);
-  assert.equal(siliconFlowAdapter.canHandle({ providerId: "siliconflow" }), true);
-  assert.equal(siliconFlowAdapter.canHandle({ providerId: "siliconflow-en" }), true);
   assert.equal(openCodeGoAdapter.canHandle({ providerId: "opencode-go" }), true);
   assert.equal(openCodeGoAdapter.canHandle({ providerId: "openrouter", baseUrl: "https://api.siliconflow.cn/v1" }), false);
   assert.equal(openRouterAdapter.canHandle({ providerId: "custom", baseUrl: "https://openrouter.ai/api/v1" }), true);

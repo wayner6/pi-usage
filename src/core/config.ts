@@ -13,10 +13,9 @@ export interface UsageConfig {
     anthropic: { enabled: boolean };
     glm: { enabled: boolean };
     openrouter: { enabled: boolean };
-    siliconflow: { enabled: boolean };
     opencodeGo: { enabled: boolean };
   };
-  providerOverrides: Record<string, "deepseek" | "cliproxy-pi-bridge" | "openai-codex" | "xai" | "anthropic" | "glm" | "openrouter" | "siliconflow" | "opencode-go" | "disabled">;
+  providerOverrides: Record<string, "deepseek" | "cliproxy-pi-bridge" | "openai-codex" | "xai" | "anthropic" | "glm" | "openrouter" | "opencode-go" | "disabled">;
   modelMappings: Array<{ provider: string; modelPattern: string; quotaProvider: string }>;
 }
 
@@ -31,7 +30,6 @@ export const DEFAULT_CONFIG: UsageConfig = {
     anthropic: { enabled: true },
     glm: { enabled: true },
     openrouter: { enabled: true },
-    siliconflow: { enabled: true },
     opencodeGo: { enabled: true },
   },
   providerOverrides: {},
@@ -68,7 +66,6 @@ export async function loadConfig(): Promise<UsageConfig> {
         anthropic: { enabled: parsed.adapters?.anthropic?.enabled ?? DEFAULT_CONFIG.adapters.anthropic.enabled },
         glm: { enabled: parsed.adapters?.glm?.enabled ?? DEFAULT_CONFIG.adapters.glm.enabled },
         openrouter: { enabled: (parsed.adapters as any)?.openrouter?.enabled ?? DEFAULT_CONFIG.adapters.openrouter.enabled },
-        siliconflow: { enabled: (parsed.adapters as any)?.siliconflow?.enabled ?? DEFAULT_CONFIG.adapters.siliconflow.enabled },
         opencodeGo: { enabled: (parsed.adapters as any)?.opencodeGo?.enabled ?? DEFAULT_CONFIG.adapters.opencodeGo.enabled },
       },
       providerOverrides: parsed.providerOverrides ?? {},

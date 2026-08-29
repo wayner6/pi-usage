@@ -22,7 +22,6 @@ The display follows the active model. It does not turn request failures into a z
 | DeepSeek | API key | Account balance |
 | GLM / Zhipu BigModel | API key | Coding Plan quota windows; standard pay-as-you-go keys cannot be queried through the official API |
 | OpenRouter | API key | Account balance (total_credits - total_usage) |
-| SiliconFlow | API key | Account balance (totalBalance / chargeBalance) |
 | OpenCode Go | API key | Rolling 5h / weekly / monthly quota windows |
 | CLIProxyAPI | `pi-bridge` | Upstream quota windows and reset times |
 
