@@ -8,6 +8,9 @@ import { cliProxyBridgeAdapter } from "./adapters/cliproxy-pi-bridge.ts";
 import { deepSeekAdapter } from "./adapters/deepseek.ts";
 import { glmAdapter } from "./adapters/glm.ts";
 import { openAICodexAdapter } from "./adapters/openai-codex.ts";
+import { openCodeGoAdapter } from "./adapters/opencode-go.ts";
+import { openRouterAdapter } from "./adapters/openrouter.ts";
+import { siliconFlowAdapter } from "./adapters/siliconflow.ts";
 import { xaiAdapter } from "./adapters/xai.ts";
 import { chooseAdapter, matchModelAcrossAccounts } from "./matching.ts";
 import { relativeTime } from "../../ui/format.ts";
@@ -17,7 +20,7 @@ export class ProviderUsageController {
   private adapters: UsageAdapter[];
 
   constructor(private config: UsageConfig, private fetchFn: typeof fetch = fetch) {
-    this.adapters = [deepSeekAdapter, openAICodexAdapter, xaiAdapter, anthropicAdapter, glmAdapter, cliProxyBridgeAdapter];
+    this.adapters = [deepSeekAdapter, openAICodexAdapter, xaiAdapter, anthropicAdapter, glmAdapter, openRouterAdapter, siliconFlowAdapter, openCodeGoAdapter, cliProxyBridgeAdapter];
   }
 
   setConfig(config: UsageConfig): void { this.config = config; }
@@ -56,6 +59,9 @@ export class ProviderUsageController {
     if (adapter.id === "xai") return this.config.adapters.xai.enabled;
     if (adapter.id === "anthropic") return this.config.adapters.anthropic.enabled;
     if (adapter.id === "glm") return this.config.adapters.glm.enabled;
+    if (adapter.id === "openrouter") return this.config.adapters.openrouter.enabled;
+    if (adapter.id === "siliconflow") return this.config.adapters.siliconflow.enabled;
+    if (adapter.id === "opencode-go") return this.config.adapters.opencodeGo.enabled;
     return true;
   }
 
@@ -99,6 +105,12 @@ export class ProviderUsageController {
       "zai-coding-cn",
       "zai",
       "glm",
+      "openrouter",
+      "siliconflow",
+      "siliconflow-en",
+      "siliconflow-cn",
+      "opencode-go",
+      "opencode",
     ];
     for (const id of knownProviders) {
       if (ctx.modelRegistry.getProviderAuthStatus(id).configured) {

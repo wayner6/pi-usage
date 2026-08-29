@@ -1,0 +1,10 @@
+{
+  "code": 200,
+  "data": {
+    "totalBalance": "42.50",
+    "chargeBalance": "30.00",
+    "balance": "12.50",
+    "status": true
+  },
+  "message": "success"
+}
