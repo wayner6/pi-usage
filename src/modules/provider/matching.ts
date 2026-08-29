@@ -352,8 +352,58 @@ export function isGroupRelevantToModels(
 }
 
 /**
+ * Resolves a friendly, high-level group label based on the models contained
+ * inside this quota group.
+ * E.g., if a group contains 'gemini-2.5-pro' and 'gemini-3.1-pro', label it "Gemini".
+ * If it contains 'claude-opus-4-6-thinking', 'claude-sonnet-4-6', and 'gpt-oss-120b-medium',
+ * label it "Claude / GPT".
+ */
+export function resolveGroupFamilyLabel(group: RawBridgeGroup): string {
+  const models = group.models ?? [];
+  const families = new Set<string>();
+
+  for (const m of models) {
+    const text = `${m.id ?? ""} ${m.displayName ?? ""}`.toLowerCase();
+    if (text.includes("gemini")) families.add("Gemini");
+    else if (text.includes("claude")) families.add("Claude");
+    else if (text.includes("gpt") || text.includes("openai")) families.add("GPT");
+    else if (text.includes("codex")) families.add("Codex");
+    else if (text.includes("deepseek")) families.add("DeepSeek");
+    else if (text.includes("kimi") || text.includes("moonshot")) families.add("Kimi");
+    else if (text.includes("grok") || text.includes("xai")) families.add("Grok");
+    else if (text.includes("glm") || text.includes("zhipu")) families.add("GLM");
+  }
+
+  // Also check the group id and label if models didn't provide family clues
+  const gText = `${group.id ?? ""} ${group.label ?? ""}`.toLowerCase();
+  if (gText.includes("gemini")) families.add("Gemini");
+  if (gText.includes("claude")) families.add("Claude");
+  if (gText.includes("gpt")) families.add("GPT");
+  if (gText.includes("codex")) families.add("Codex");
+  if (gText.includes("pro") || gText.includes("flash")) {
+    if (!families.has("Claude") && !families.has("GPT") && !families.has("Codex")) {
+      families.add("Gemini");
+    }
+  }
+  if (gText.includes("thinking") || gText.includes("other")) {
+    if (!families.has("Gemini")) {
+      families.add("Claude");
+    }
+  }
+
+  if (families.size > 0) {
+    const order = ["Gemini", "Claude", "GPT", "Codex", "DeepSeek", "Kimi", "Grok", "GLM"];
+    const sorted = order.filter((f) => families.has(f));
+    return sorted.join(" / ");
+  }
+
+  return group.label || group.id || "Quota";
+}
+
+/**
  * Deduplicates groups in the same account that share the exact same quota pool
- * (identical remaining fraction and identical reset time).
+ * (identical remaining fraction and identical reset time),
+ * and computes clean, friendly family labels (e.g. "Gemini", "Claude / GPT").
  */
 export function deduplicateSharedQuotaGroups(groups: RawBridgeGroup[]): RawBridgeGroup[] {
   const result: RawBridgeGroup[] = [];
@@ -380,25 +430,25 @@ export function deduplicateSharedQuotaGroups(groups: RawBridgeGroup[]): RawBridg
     }
 
     if (matchingIndices.length === 1) {
-      result.push(current);
+      result.push({
+        ...current,
+        label: resolveGroupFamilyLabel(current),
+      });
       visited.add(i);
     } else {
       const matchedGroups = matchingIndices.map((idx) => groups[idx]!);
       for (const idx of matchingIndices) visited.add(idx);
 
-      // Combine labels nicely
-      // E.g. "Thinking Models" & "Other Models" -> "Thinking / Other Models"
-      const labelParts = matchedGroups.map((g) =>
-        (g.label ?? g.id ?? "Quota").replace(/\s+Models$/i, "").trim()
-      );
-      const mergedLabel = `${labelParts.join(" / ")} Models`;
-
       const allModels = matchedGroups.flatMap((g) => g.models ?? []);
-      result.push({
+      const mergedGroup: RawBridgeGroup = {
         ...current,
         id: matchedGroups.map((g) => g.id).filter(Boolean).join("+"),
-        label: mergedLabel,
         models: allModels,
+      };
+
+      result.push({
+        ...mergedGroup,
+        label: resolveGroupFamilyLabel(mergedGroup),
       });
     }
   }
