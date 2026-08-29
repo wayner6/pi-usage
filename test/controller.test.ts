@@ -85,6 +85,8 @@ test("controller.refreshAll correctly isolates model baseUrl and filters proxy a
   assert.equal(cpaSnapshot.accounts.length, 1);
   assert.equal(cpaSnapshot.accounts[0]?.provider, "antigravity");
   assert.equal(cpaSnapshot.accounts.some((a) => a.provider === "codex"), false);
+  // Shared pool pro/flash are deduplicated!
+  assert.equal(cpaSnapshot.accounts[0]?.metrics.length, 2);
 
   // 3. Verify native OpenAI Codex snapshot: Only 1 official Codex exists
   const codexSnapshot = snapshots.find((s) => s.displayName === "OpenAI Codex");

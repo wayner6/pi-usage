@@ -1,6 +1,6 @@
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
 import { bridgeUrl, safeError, sameOriginFetch } from "../../../core/security.ts";
-import { isAccountRelevantToModels } from "../matching.ts";
+import { isAccountRelevantToModels, isGroupRelevantToModels, deduplicateSharedQuotaGroups } from "../matching.ts";
 
 const NATIVE_PROVIDER_IDS = new Set(["deepseek", "openai-codex", "xai", "anthropic", "glm", "zai", "zai-coding-cn"]);
 
@@ -64,22 +64,35 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
       if (!response.ok) throw new Error(`pi-bridge returned HTTP ${response.status}`);
       const data = await response.json() as BridgeUsage;
       if (data.schemaVersion !== 1) return { adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId, state: "incompatible", fetchedAt, accounts: [], error: `Unsupported pi-bridge schemaVersion ${String(data.schemaVersion)}` };
-      let accounts = (data.accounts ?? []).map((account, index) => ({
-        id: account.authIndex ?? `${account.provider ?? "provider"}-${index}`,
-        provider: account.provider ?? "unknown",
-        label: account.label || account.account || account.provider || `Account ${index + 1}`,
-        ...(account.status ? { status: account.status } : {}),
-        ...(account.disabled !== undefined ? { disabled: account.disabled } : {}),
-        ...(account.unavailable !== undefined ? { unavailable: account.unavailable } : {}),
-        metrics: metrics(account.groups ?? []),
-        rawGroups: account.groups,
-        ...(account.error ? { error: account.error } : {}),
-      }));
+      let accounts = (data.accounts ?? [])
+        .map((account, index) => {
+          let rawGroups = account.groups ?? [];
 
-      // Filter accounts based on user-configured models for this provider in Pi
-      if (target.configuredModelIds && target.configuredModelIds.length > 0) {
-        accounts = accounts.filter((account) => isAccountRelevantToModels(account, target.configuredModelIds));
-      }
+          // 1. Filter groups within this account if user configured specific models
+          if (target.configuredModelIds && target.configuredModelIds.length > 0) {
+            rawGroups = rawGroups.filter((g) => isGroupRelevantToModels(g, target.configuredModelIds));
+          }
+
+          // 2. Deduplicate shared quota pools (groups with identical remaining fraction and reset time)
+          const deduplicatedGroups = deduplicateSharedQuotaGroups(rawGroups);
+
+          return {
+            id: account.authIndex ?? `${account.provider ?? "provider"}-${index}`,
+            provider: account.provider ?? "unknown",
+            label: account.label || account.account || account.provider || `Account ${index + 1}`,
+            ...(account.status ? { status: account.status } : {}),
+            ...(account.disabled !== undefined ? { disabled: account.disabled } : {}),
+            ...(account.unavailable !== undefined ? { unavailable: account.unavailable } : {}),
+            metrics: metrics(deduplicatedGroups),
+            rawGroups: deduplicatedGroups,
+            ...(account.error ? { error: account.error } : {}),
+          };
+        })
+        // 3. Filter out accounts that have no relevant groups or aren't relevant to user models
+        .filter((account) => {
+          if (!target.configuredModelIds || target.configuredModelIds.length === 0) return true;
+          return isAccountRelevantToModels(account, target.configuredModelIds) && account.metrics.length > 0;
+        });
 
       return {
         adapterId: this.id,

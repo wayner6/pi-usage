@@ -39,7 +39,9 @@ test("pi-bridge parses quota windows (group-level only, no model duplicates)", a
   assert.equal(snapshot.accounts.length, 2);
   const antigravity = snapshot.accounts.find((a) => a.provider === "antigravity");
   assert.ok(antigravity, "antigravity account present");
-  assert.equal(antigravity?.metrics.length, 3);
+  // pro-models and flash-models share the exact same quota pool (0.9999994 @ 10:37:00Z), so they are deduplicated into 1
+  assert.equal(antigravity?.metrics.length, 2);
+  assert.equal(antigravity?.metrics[1]?.label, "Pro / Flash Models");
   const codex = snapshot.accounts.find((a) => a.provider === "codex");
   assert.ok(codex, "codex account present");
   assert.equal(codex?.metrics.length, 2);

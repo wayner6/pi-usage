@@ -290,3 +290,120 @@ export function isAccountRelevantToModels(
   return false;
 }
 
+/**
+ * Determines whether a specific group in a proxy account is relevant to
+ * the user's configured models.
+ */
+export function isGroupRelevantToModels(
+  group: RawBridgeGroup,
+  configuredModelIds?: string[],
+): boolean {
+  if (!configuredModelIds || configuredModelIds.length === 0) return true;
+
+  const targetTokens = new Set(configuredModelIds.flatMap(tokenizeModelId));
+  const modelKeywords = [
+    "claude", "gemini", "codex", "gpt", "openai", "deepseek", "kimi", "moonshot", "grok", "xai",
+    "thinking", "flash", "pro", "opus", "sonnet", "haiku", "turbo", "mini", "reasoning",
+  ];
+
+  // Distinct tier tokens that shouldn't cross-match (e.g. 'pro' vs 'flash')
+  const tierTokens = ["pro", "flash", "thinking", "opus", "sonnet", "haiku"];
+
+  // 1. Check models explicitly listed inside the group
+  for (const m of group.models ?? []) {
+    const mid = (m.id ?? "").trim().toLowerCase();
+    if (!mid) continue;
+
+    for (const targetId of configuredModelIds) {
+      const tid = targetId.trim().toLowerCase();
+      if (mid === tid || tid.includes(mid) || mid.includes(tid)) return true;
+
+      const mTokens = tokenizeModelId(mid);
+      const overlap = mTokens.filter((t) => targetTokens.has(t));
+
+      // Guard: If group model has 'pro' but target only has 'flash', skip unless other strong overlap
+      const mHasPro = mTokens.includes("pro");
+      const tHasPro = tokenizeModelId(tid).includes("pro");
+      if (mHasPro !== tHasPro && (mTokens.includes("flash") || tokenizeModelId(tid).includes("flash"))) {
+        continue;
+      }
+
+      if (overlap.length >= 2 || overlap.some((t) => modelKeywords.includes(t) && !tierTokens.includes(t))) {
+        return true;
+      }
+    }
+  }
+
+  // 2. Check group label and id
+  const gTokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
+
+  // Distinct tier check: if group says 'pro' but user configured models don't have 'pro', reject
+  for (const tier of tierTokens) {
+    if (gTokens.includes(tier)) {
+      if (targetTokens.has(tier)) return true;
+      // Group has this tier keyword, but user configured models don't
+      return false;
+    }
+  }
+
+  // General model token overlap
+  const gOverlap = gTokens.filter((t) => targetTokens.has(t));
+  return gOverlap.length >= 2 || gOverlap.some((t) => modelKeywords.includes(t));
+}
+
+/**
+ * Deduplicates groups in the same account that share the exact same quota pool
+ * (identical remaining fraction and identical reset time).
+ */
+export function deduplicateSharedQuotaGroups(groups: RawBridgeGroup[]): RawBridgeGroup[] {
+  const result: RawBridgeGroup[] = [];
+  const visited = new Set<number>();
+
+  for (let i = 0; i < groups.length; i++) {
+    if (visited.has(i)) continue;
+    const current = groups[i]!;
+    const matchingIndices: number[] = [i];
+
+    for (let j = i + 1; j < groups.length; j++) {
+      if (visited.has(j)) continue;
+      const other = groups[j]!;
+
+      // Compare remainingFraction and resetTime
+      if (
+        typeof current.remainingFraction === "number" &&
+        typeof other.remainingFraction === "number" &&
+        Math.abs(current.remainingFraction - other.remainingFraction) < 0.0001 &&
+        current.resetTime === other.resetTime
+      ) {
+        matchingIndices.push(j);
+      }
+    }
+
+    if (matchingIndices.length === 1) {
+      result.push(current);
+      visited.add(i);
+    } else {
+      const matchedGroups = matchingIndices.map((idx) => groups[idx]!);
+      for (const idx of matchingIndices) visited.add(idx);
+
+      // Combine labels nicely
+      // E.g. "Thinking Models" & "Other Models" -> "Thinking / Other Models"
+      const labelParts = matchedGroups.map((g) =>
+        (g.label ?? g.id ?? "Quota").replace(/\s+Models$/i, "").trim()
+      );
+      const mergedLabel = `${labelParts.join(" / ")} Models`;
+
+      const allModels = matchedGroups.flatMap((g) => g.models ?? []);
+      result.push({
+        ...current,
+        id: matchedGroups.map((g) => g.id).filter(Boolean).join("+"),
+        label: mergedLabel,
+        models: allModels,
+      });
+    }
+  }
+
+  return result;
+}
+
+
