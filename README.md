@@ -21,11 +21,11 @@ The display follows the active model. It does not turn request failures into a z
 | Anthropic Claude | Claude OAuth or API key | Subscription status or API rate-limit headers |
 | DeepSeek | API key | Account balance |
 | GLM / Zhipu BigModel | API key | Coding Plan quota windows; standard pay-as-you-go keys cannot be queried through the official API |
-| OpenRouter | API key | Account balance (total_credits - total_usage) |
+| OpenRouter | OAuth or API key | Account balance (or key remaining limit) and total usage |
 | OpenCode Go | API key | Rolling 5h / weekly / monthly quota windows |
-| CLIProxyAPI | `pi-bridge` | Upstream quota windows and reset times |
+| CLIProxyAPI | `pi-bridge` plugin | Upstream quota windows and reset times (requires [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) installed on the CLIProxyAPI server) |
 
-Pi Usage uses Pi's existing provider authentication. CLIProxyAPI is queried through server-side [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge); its Management Key is never read or stored by this plugin.
+Pi Usage uses Pi's existing provider authentication (OAuth tokens or API keys). CLIProxyAPI is queried via [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) (which must be installed on your CLIProxyAPI proxy server); its Management Key is never read or stored by this plugin.
 
 ## Install
 

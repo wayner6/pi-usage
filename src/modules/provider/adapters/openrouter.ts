@@ -53,82 +53,68 @@ export const openRouterAdapter: UsageAdapter = {
       }
 
       if (keyRes.ok) {
-        const keyData = await keyRes.json() as KeyResponse & CreditsResponse;
+        const keyData = await keyRes.json() as KeyResponse;
         const info = keyData.data;
-        // Check if response matches /api/v1/key schema (has limit_remaining, limit, or is_free_tier)
-        if (info && ("limit_remaining" in info || "limit" in info || "is_free_tier" in info)) {
-          const metrics = [];
-          let remaining: number | undefined = typeof info.limit_remaining === "number" ? info.limit_remaining : undefined;
-          const usage = typeof info.usage === "number" ? info.usage : 0;
-          const limit = typeof info.limit === "number" ? info.limit : null;
+        let remaining: number | undefined = typeof info?.limit_remaining === "number" ? info.limit_remaining : undefined;
+        const usage = typeof info?.usage === "number" ? info.usage : 0;
+        const limit = typeof info?.limit === "number" ? info.limit : null;
+        const label = info?.label ? `OpenRouter (${info.label})` : "OpenRouter";
 
-          if (remaining !== undefined) {
-            metrics.push({
-              kind: "balance" as const,
-              id: "openrouter-remaining",
-              label: "Remaining",
-              amount: remaining,
-              currency: "USD",
-              detail: limit != null ? `Limit $${limit.toFixed(2)} · Used $${usage.toFixed(2)}` : `Used $${usage.toFixed(2)} (unlimited)`,
-            });
-          } else {
-            // Key has unlimited quota, show usage
-            metrics.push({
-              kind: "balance" as const,
-              id: "openrouter-usage",
-              label: "Usage",
-              amount: usage,
-              currency: "USD",
-              detail: "Unlimited key limit",
-            });
-          }
-
-          const label = info.label ? `OpenRouter (${info.label})` : "OpenRouter";
-          const summary = remaining !== undefined ? `Balance $${remaining.toFixed(2)}` : `Used $${usage.toFixed(2)}`;
-
-          return {
-            adapterId: this.id,
-            sourceProviderId: target.providerId,
-            displayName: "OpenRouter",
-            state: "ok",
-            fetchedAt,
-            summary,
-            accounts: [{
-              id: "openrouter-account",
-              provider: "openrouter",
-              label,
-              status: "available",
-              metrics,
-            }],
-          };
-        } else if (info && typeof info.total_credits === "number" && typeof info.total_usage === "number") {
-          // In case /api/v1/credits response was returned
-          const total = info.total_credits;
-          const used = info.total_usage;
-          const remaining = Math.max(0, total - used);
-          return {
-            adapterId: this.id,
-            sourceProviderId: target.providerId,
-            displayName: "OpenRouter",
-            state: "ok",
-            fetchedAt,
-            summary: `Balance $${remaining.toFixed(2)}`,
-            accounts: [{
-              id: "openrouter-account",
-              provider: "openrouter",
-              label: "OpenRouter",
-              status: "available",
-              metrics: [{
-                kind: "balance",
-                id: "openrouter-balance",
-                label: "Balance",
-                amount: remaining,
-                currency: "USD",
-                detail: `Used $${used.toFixed(2)} / $${total.toFixed(2)}`,
-              }],
-            }],
-          };
+        // If key has no individual limit (unlimited), fetch account credits to show real remaining balance
+        if (remaining === undefined) {
+          try {
+            const credRes = await sameOriginFetch(new URL("/api/v1/credits", OFFICIAL_ORIGIN), {
+              method: "GET",
+              headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+              signal,
+            }, fetchFn, OFFICIAL_ORIGIN);
+            if (credRes.ok) {
+              const credData = await credRes.json() as CreditsResponse;
+              if (typeof credData.data?.total_credits === "number" && typeof credData.data?.total_usage === "number") {
+                remaining = Math.max(0, credData.data.total_credits - credData.data.total_usage);
+              }
+            }
+          } catch {}
         }
+
+        const metrics = [];
+        if (remaining !== undefined) {
+          metrics.push({
+            kind: "balance" as const,
+            id: "openrouter-remaining",
+            label: "Balance",
+            amount: remaining,
+            currency: "USD",
+            detail: limit != null ? `Key Limit $${limit.toFixed(2)} · Used $${usage.toFixed(2)}` : `Account Balance · Used $${usage.toFixed(2)}`,
+          });
+        } else {
+          metrics.push({
+            kind: "balance" as const,
+            id: "openrouter-usage",
+            label: "Usage",
+            amount: usage,
+            currency: "USD",
+            detail: "Unlimited key limit",
+          });
+        }
+
+        const summary = remaining !== undefined ? `Balance $${remaining.toFixed(2)}` : `Used $${usage.toFixed(2)}`;
+
+        return {
+          adapterId: this.id,
+          sourceProviderId: target.providerId,
+          displayName: "OpenRouter",
+          state: "ok",
+          fetchedAt,
+          summary,
+          accounts: [{
+            id: "openrouter-account",
+            provider: "openrouter",
+            label,
+            status: "available",
+            metrics,
+          }],
+        };
       }
 
       // 2. Fallback for Management Keys: GET /api/v1/credits
