@@ -14,6 +14,7 @@ import { xaiAdapter } from "./adapters/xai.ts";
 import { kimiCodingAdapter } from "./adapters/kimi-coding.ts";
 import { chooseAdapter, matchModelAcrossAccounts, isAccountCompatibleWithModel, tokenizeModelId } from "./matching.ts";
 import { relativeTime } from "../../ui/format.ts";
+import { safeError } from "../../core/security.ts";
 
 export class ProviderUsageController {
   readonly cache = new UsageCache();
@@ -27,7 +28,15 @@ export class ProviderUsageController {
 
   async target(ctx: ExtensionContext, providerId: string, model?: Model<Api>): Promise<ProviderTarget> {
     const provider = ctx.modelRegistry.getProvider(providerId);
-    const auth = await ctx.modelRegistry.getProviderAuth(providerId);
+    let auth: ProviderTarget["auth"];
+    let authError: string | undefined;
+    try {
+      auth = await ctx.modelRegistry.getProviderAuth(providerId);
+    } catch (error) {
+      // Adapter selection and unsupported-provider reporting must still work
+      // when a provider's credential resolver fails (notably Vertex ADC).
+      authError = safeError(error);
+    }
 
     // Only associate the active model if it actually belongs to this provider!
     const activeModel = model ?? ctx.model;
@@ -47,6 +56,7 @@ export class ProviderUsageController {
       ...(matchedModel ? { model: matchedModel } : {}),
       ...(provider ? { provider } : {}),
       ...(auth ? { auth } : {}),
+      ...(authError ? { authError } : {}),
       ...(baseUrl ? { baseUrl } : {}),
       ...(configuredModelIds.length ? { configuredModelIds } : {}),
     };
@@ -67,7 +77,9 @@ export class ProviderUsageController {
 
   async fetchTarget(target: ProviderTarget, force = false): Promise<UsageSnapshot> {
     const adapter = chooseAdapter(target, this.adapters.filter((item) => this.enabled(item)), this.config);
-    if (!adapter) return { adapterId: "none", sourceProviderId: target.providerId, displayName: target.providerId, state: "unsupported", fetchedAt: new Date().toISOString(), accounts: [], error: "No enabled usage adapter matched this provider" };
+    const displayName = target.provider?.name ?? target.providerId;
+    if (!adapter) return { adapterId: "none", sourceProviderId: target.providerId, displayName, state: "unsupported", fetchedAt: new Date().toISOString(), accounts: [], error: "No enabled usage adapter matched this provider" };
+    if (target.authError) return { adapterId: adapter.id, sourceProviderId: target.providerId, displayName, state: "unavailable", fetchedAt: new Date().toISOString(), accounts: [], error: `Provider authentication could not be resolved: ${target.authError}` };
     const key = `${target.providerId}:${adapter.id}`;
     return this.cache.coalesce(key, async () => {
       const timeout = AbortSignal.timeout(this.config.refresh.timeoutSeconds * 1000);

@@ -50,6 +50,7 @@ export interface ProviderTarget {
   provider?: Provider<Api>;
   baseUrl?: string;
   auth?: AuthResult;
+  authError?: string;
   configuredModelIds?: string[];
 }
 

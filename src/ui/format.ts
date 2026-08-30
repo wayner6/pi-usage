@@ -18,6 +18,25 @@ export function relativeTime(value?: string): string | undefined {
   return `resets in ${Math.floor(hours / 24)}d ${hours % 24}h`;
 }
 
+type QuotaWindowMetric = Extract<Metric, { kind: "quota-window" }>;
+
+export function compactQuotaSummary(
+  providerLabel: string,
+  metrics: QuotaWindowMetric[],
+  maxWindows = metrics.length,
+): string | undefined {
+  const selected = metrics.slice(0, Math.max(0, maxWindows));
+  if (!selected.length) return undefined;
+  const escaped = providerLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const prefix = new RegExp(`^${escaped}\\s+`, "i");
+  const parts = selected.map((metric) => {
+    const label = metric.label.replace(prefix, "");
+    const reset = relativeTime(metric.resetAt);
+    return `${label} ${Math.round(metric.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}`;
+  });
+  return `${providerLabel} · ${parts.join(" · ")}`;
+}
+
 export function metricText(metric: Metric): string {
   switch (metric.kind) {
     case "balance": {

@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
 import { safeError, sameOriginFetch } from "../../../core/security.ts";
+import { compactQuotaSummary } from "../../../ui/format.ts";
 
 const ANTHROPIC_API_ORIGIN = "https://api.anthropic.com";
 const OAUTH_USAGE_PATH = "/api/oauth/usage";
@@ -147,8 +148,7 @@ function oauthSummary(metrics: Metric[]): string | undefined {
   const weekly = quotas.find((metric) => metric.id === "claude-7d")
     ?? quotas.find((metric) => metric.id.startsWith("claude-7d-") || metric.id.startsWith("claude-weekly-"));
   const selected = [session, weekly].filter((metric): metric is QuotaMetric => Boolean(metric));
-  if (!selected.length) return undefined;
-  return `Claude · ${selected.map((metric) => `${metric.label.replace(/^Claude\s+/i, "")} ${Math.round(metric.remainingFraction * 100)}%`).join(" · ")}`;
+  return compactQuotaSummary("Claude", selected);
 }
 
 export const anthropicAdapter: UsageAdapter = {

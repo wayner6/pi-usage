@@ -111,7 +111,7 @@ test("openai-codex adapter parses official wham usage response", async () => {
   assert.equal(Math.round((metrics[0] as any).remainingFraction * 100), 99);
   assert.equal(metrics[1]?.label, "Codex 7d");
   assert.equal(Math.round((metrics[1] as any).remainingFraction * 100), 78);
-  assert.equal(snapshot.summary, "Codex · 5h 99% · 7d 78%");
+  assert.match(snapshot.summary ?? "", /^Codex · 5h 99% \(.+\) · 7d 78% \(.+\)$/);
 });
 
 test("xai adapter verifies userinfo and parses active status", async () => {
@@ -155,7 +155,7 @@ test("anthropic OAuth adapter parses subscription 5h and 7d windows", async () =
     },
   });
   assert.equal(snapshot.state, "ok");
-  assert.equal(snapshot.summary, "Claude · 5h 80% · 7d 65%");
+  assert.match(snapshot.summary ?? "", /^Claude · 5h 80% \(.+\) · 7d 65% \(.+\)$/);
   assert.equal(snapshot.accounts[0]?.metrics.length, 3);
 });
 
@@ -192,7 +192,7 @@ test("glm adapter parses coding plan multi-window quota correctly", async () => 
     },
   });
   assert.equal(planSnapshot.state, "ok");
-  assert.equal(planSnapshot.summary, "GLM 5h 75% · 7d 50%");
+  assert.match(planSnapshot.summary ?? "", /^GLM · 5h 75% \(.+\) · 7d 50% \(.+\)$/);
   assert.equal(planSnapshot.accounts[0]?.label, "GLM PRO");
 });
 
@@ -429,7 +429,7 @@ test("kimi-coding adapter parses 5h and weekly quotas correctly", async () => {
     target: {
       providerId: "kimi-coding",
       baseUrl: "https://api.kimi.com/coding",
-      auth: { auth: { apiKey: "mock-token" }, source: "oauth" },
+      auth: { auth: { headers: { Authorization: "Bearer mock-token" } }, source: "OAuth" },
     },
     signal: new AbortController().signal,
     force: false,
@@ -437,7 +437,7 @@ test("kimi-coding adapter parses 5h and weekly quotas correctly", async () => {
   });
 
   assert.equal(snapshot.state, "ok");
-  assert.equal(snapshot.summary, "Kimi · 5h 90% · Weekly 90%");
+  assert.match(snapshot.summary ?? "", /^Kimi · 5h 90% \(.+\) · Weekly 90% \(.+\)$/);
   assert.equal(snapshot.accounts.length, 1);
   assert.equal(snapshot.accounts[0]?.metrics.length, 2);
 });
@@ -469,6 +469,6 @@ test("kimi-coding adapter handles 429 quota exhausted gracefully", async () => {
   });
 
   assert.equal(snapshot.state, "empty");
-  assert.equal(snapshot.summary, "Quota exhausted");
+  assert.equal(snapshot.summary, "No active quota");
   assert.equal(snapshot.accounts[0]?.metrics[0]?.kind, "status");
 });

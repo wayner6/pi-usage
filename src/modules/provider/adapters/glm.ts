@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
 import { safeError, sameOriginFetch } from "../../../core/security.ts";
+import { compactQuotaSummary } from "../../../ui/format.ts";
 
 const BIGMODEL_API_ORIGIN = "https://open.bigmodel.cn";
 const ZAI_API_ORIGIN = "https://api.z.ai";
@@ -182,19 +183,11 @@ export const glmAdapter: UsageAdapter = {
               value: planLevel,
             });
 
-            // Format summary
-            let summary = `GLM · ${planLevel}`;
-            if (metrics.length > 0 && metrics[0]!.kind === "quota-window") {
-              const parts = metrics
-                .filter((m): m is Extract<Metric, { kind: "quota-window" }> => m.kind === "quota-window" && (m.id === "glm-5h" || m.id === "glm-7d"))
-                .map((m) => {
-                  const sub = m.label.replace(/^GLM\s+/, "");
-                  return `${sub} ${Math.round(m.remainingFraction * 100)}%`;
-                });
-              if (parts.length > 0) {
-                summary = `GLM ${parts.join(" · ")}`;
-              }
-            }
+            const planWindows = metrics.filter(
+              (metric): metric is Extract<Metric, { kind: "quota-window" }> =>
+                metric.kind === "quota-window" && (metric.id === "glm-5h" || metric.id === "glm-7d"),
+            );
+            const summary = compactQuotaSummary("GLM", planWindows) ?? `GLM · ${planLevel}`;
 
             return {
               adapterId: this.id,

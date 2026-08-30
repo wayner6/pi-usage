@@ -97,6 +97,28 @@ test("controller.refreshAll correctly isolates model baseUrl and filters proxy a
   assert.equal(codexSnapshot.accounts[0]?.metrics.length, 2);
 });
 
+test("unsupported Google Vertex auth resolution never leaves the footer at Loading", async () => {
+  const controller = new ProviderUsageController(DEFAULT_CONFIG);
+  const model = {
+    id: "gemini-3.1-pro-preview",
+    provider: "google-vertex",
+    baseUrl: "https://us-central1-aiplatform.googleapis.com",
+  };
+  const context: any = {
+    model,
+    modelRegistry: {
+      getProvider: () => ({ id: "google-vertex", name: "Google Vertex AI", baseUrl: model.baseUrl }),
+      getProviderAuth: async () => { throw new Error("ADC could not be resolved"); },
+      getAll: () => [model],
+    },
+  };
+
+  const snapshot = await controller.refreshCurrent(context, false, model as any);
+  assert.equal(snapshot?.state, "unsupported");
+  assert.equal(snapshot?.displayName, "Google Vertex AI");
+  assert.match(snapshot?.error ?? "", /No enabled usage adapter/);
+});
+
 test("controller.currentView preserves both native Codex windows", () => {
   const controller = new ProviderUsageController(DEFAULT_CONFIG);
   const snapshot: UsageSnapshot = {

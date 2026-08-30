@@ -10,7 +10,7 @@ Pi Usage is a [Pi](https://github.com/earendil-works/pi-mono) and [pi-web](https
 - Remaining balance, rate-limit windows, and reset times when the provider exposes them.
 - Details for every configured provider through `/usage`.
 
-The display follows the active model. It does not turn request failures into a zero balance.
+The display follows the active model. Quota windows include reset countdowns when the provider supplies reset timestamps. Request failures are never converted into zero balance.
 
 ## Supported providers
 
@@ -27,6 +27,8 @@ The display follows the active model. It does not turn request failures into a z
 | CLIProxyAPI | `pi-bridge` plugin | Exact upstream quota windows and reset times (requires [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) installed on the CLIProxyAPI server) |
 
 Pi Usage uses Pi's existing provider authentication (OAuth tokens or API keys). CLIProxyAPI is queried via [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) (which must be installed on your CLIProxyAPI proxy server); its Management Key is never read or stored by this plugin. Proxy windows are displayed only when `pi-bridge` returns them: for example, an Antigravity Claude account that exposes one shared pool cannot be presented as separate 5-hour and weekly limits.
+
+Google Vertex AI is detected but does not expose one subscription-style balance/window. Its project quotas are multi-dimensional Cloud Quotas and Cloud Monitoring metrics requiring project-specific IAM permissions, so Pi Usage reports it as unsupported instead of leaving the footer at `Loading...`. Kimi OAuth without an active Kimi Code plan is reported as `No active quota`, not as an authentication failure.
 
 ## Install
 

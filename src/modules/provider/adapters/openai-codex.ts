@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
 import { safeError, sameOriginFetch } from "../../../core/security.ts";
+import { compactQuotaSummary } from "../../../ui/format.ts";
 
 const CODEX_BASE_ORIGIN = "https://chatgpt.com";
 const CODEX_USAGE_PATH = "/backend-api/wham/usage";
@@ -195,9 +196,7 @@ export const openAICodexAdapter: UsageAdapter = {
       const quotaMetrics = metrics.filter(
         (metric): metric is Extract<Metric, { kind: "quota-window" }> => metric.kind === "quota-window",
       );
-      const summary = quotaMetrics.length
-        ? `Codex · ${quotaMetrics.map((metric) => `${metric.label.replace(/^Codex\s+/i, "")} ${Math.round(metric.remainingFraction * 100)}%`).join(" · ")}`
-        : undefined;
+      const summary = compactQuotaSummary("Codex", quotaMetrics);
 
       return {
         adapterId: this.id,

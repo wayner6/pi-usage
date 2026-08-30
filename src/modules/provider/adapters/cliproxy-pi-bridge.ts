@@ -16,6 +16,8 @@ const NATIVE_PROVIDER_IDS = new Set([
   "openrouter",
   "opencode-go",
   "opencode",
+  "google",
+  "google-vertex",
 ]);
 
 type BridgeGroup = { id?: string; label?: string; remainingFraction?: number; resetTime?: string; models?: Array<{ id?: string; displayName?: string; remainingFraction?: number; resetTime?: string }> };
@@ -53,7 +55,8 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
           url.origin.includes("siliconflow.cn") ||
           url.origin.includes("siliconflow.com") ||
           url.origin.includes("openrouter.ai") ||
-          url.origin.includes("opencode.ai")
+          url.origin.includes("opencode.ai") ||
+          url.origin.includes("googleapis.com")
         ) {
           return false;
         }

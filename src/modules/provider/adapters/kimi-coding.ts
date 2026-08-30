@@ -1,5 +1,6 @@
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
 import { safeError, sameOriginFetch } from "../../../core/security.ts";
+import { compactQuotaSummary } from "../../../ui/format.ts";
 
 const OFFICIAL_ORIGIN = "https://api.kimi.com";
 const USAGES_PATH = "/coding/v1/usages";
@@ -60,10 +61,16 @@ export const kimiCodingAdapter: UsageAdapter = {
   async fetch({ target, signal, fetchFn }): Promise<UsageSnapshot> {
     const fetchedAt = new Date().toISOString();
     const authObj = (target.auth?.auth as Record<string, unknown> | undefined);
+    const resolvedHeaders = authObj?.headers as Record<string, string> | undefined;
+    const authorization = resolvedHeaders
+      ? Object.entries(resolvedHeaders).find(([name]) => name.toLowerCase() === "authorization")?.[1]
+      : undefined;
+    const bearerToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
     const token = (authObj?.apiKey as string | undefined) ||
       (authObj?.access as string | undefined) ||
       (authObj?.accessToken as string | undefined) ||
-      (authObj?.token as string | undefined);
+      (authObj?.token as string | undefined) ||
+      bearerToken;
 
     if (!token) {
       return {
@@ -115,7 +122,7 @@ export const kimiCodingAdapter: UsageAdapter = {
             status: "limit_reached",
             metrics: [{ kind: "status", id: "kimi-quota", label: "Quota", value: message }],
           }],
-          summary: "Quota exhausted",
+          summary: "No active quota",
         };
       }
 
@@ -179,15 +186,12 @@ export const kimiCodingAdapter: UsageAdapter = {
         }
       }
 
-      const primary = fiveHourMetric || weeklyMetric;
-      let summary: string | undefined;
-      if (fiveHourMetric && weeklyMetric) {
-        const p1 = `${Math.round(fiveHourMetric.remainingFraction * 100)}%`;
-        const p2 = `${Math.round(weeklyMetric.remainingFraction * 100)}%`;
-        summary = `Kimi · 5h ${p1} · Weekly ${p2}`;
-      } else if (primary) {
-        summary = `${primary.label} ${Math.round(primary.remainingFraction * 100)}%`;
-      }
+      const summary = compactQuotaSummary(
+        "Kimi",
+        [fiveHourMetric, weeklyMetric].filter(
+          (metric): metric is Extract<Metric, { kind: "quota-window" }> => Boolean(metric),
+        ),
+      );
 
       return {
         adapterId: this.id,

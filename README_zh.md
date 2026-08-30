@@ -8,7 +8,7 @@ Pi Usage 是一个适用于 [Pi](https://github.com/earendil-works/pi-mono) 和 
 - 服务商公开提供的剩余额度、限流窗口和重置时间。
 - 通过 `/usage` 查看所有已配置服务商的详细信息。
 
-显示会随当前模型切换。请求失败时不会被错误显示为余额或额度为零。
+显示会随当前模型切换。服务商返回重置时间时，额度窗口会显示重置倒计时；请求失败不会被错误转换为余额或额度为零。
 
 ## 支持的服务商
 
@@ -25,6 +25,8 @@ Pi Usage 是一个适用于 [Pi](https://github.com/earendil-works/pi-mono) 和 
 | CLIProxyAPI | `pi-bridge` 插件 | 上游实际返回的额度窗口与重置时间（需在代理服务端安装 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 插件） |
 
 Pi Usage 直接复用 Pi 中已有的服务商认证（OAuth 令牌或 API Key）。CLIProxyAPI 通过服务端 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 插件查询（需要 CLIProxyAPI 服务端已部署该插件），本插件绝不会读取、传输或存储其 Management Key。代理额度只按 `pi-bridge` 的实际返回显示；例如 Antigravity 的 Claude 账户如果只返回一个共享额度池，插件不会虚构成独立的 5 小时和周额度。
+
+Google Vertex AI 会被识别，但它没有单一的订阅式余额或额度窗口；其项目额度由需要项目级 IAM 权限的 Cloud Quotas 与 Cloud Monitoring 多维指标组成。因此 Pi Usage 会明确显示“不支持”，而不是一直停留在 `Loading...`。没有有效 Kimi Code 套餐的 Kimi OAuth 会显示 `No active quota`，不会再误报为认证失败。
 
 ## 安装
 

@@ -6,6 +6,7 @@ import { ProviderUsageController } from "./modules/provider/controller.ts";
 import { showDetails } from "./ui/details.ts";
 import { compactSnapshot, snapshotLines } from "./ui/format.ts";
 import { handleSettings } from "./settings.ts";
+import { safeError } from "./core/security.ts";
 
 const STATUS_ID = "pi-usage";
 const WIDGET_ID = "pi-usage-provider";
@@ -46,8 +47,17 @@ export default function (pi: ExtensionAPI) {
       return snapshot;
     } catch (error) {
       const fallback = model ? controller.cache.values().find((item) => item.sourceProviderId === model.provider) : undefined;
-      if (generation === renderGeneration) render(ctx, fallback, model);
-      return fallback;
+      const failure: UsageSnapshot | undefined = fallback ?? (model ? {
+        adapterId: "none",
+        sourceProviderId: model.provider,
+        displayName: ctx.modelRegistry.getProviderDisplayName(model.provider),
+        state: "unavailable",
+        fetchedAt: new Date().toISOString(),
+        accounts: [],
+        error: safeError(error),
+      } : undefined);
+      if (generation === renderGeneration) render(ctx, failure, model);
+      return failure;
     }
   }
 

@@ -1,5 +1,6 @@
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
 import { safeError, sameOriginFetch } from "../../../core/security.ts";
+import { compactQuotaSummary } from "../../../ui/format.ts";
 
 const OFFICIAL_ORIGIN = "https://opencode.ai";
 const USAGE_PATH = "/zen/go/v1/usage";
@@ -73,16 +74,10 @@ export const openCodeGoAdapter: UsageAdapter = {
       if (!metrics.length) {
         return { adapterId: this.id, sourceProviderId: target.providerId, displayName: "OpenCode Go", state: "empty", fetchedAt, accounts: [], error: "No usage windows returned" };
       }
-      // summary: show worst window or rolling + weekly like Codex style
-      let summary: string | undefined;
-      const quotaMetrics = metrics.filter((m): m is Extract<Metric, { kind: "quota-window" }> => m.kind === "quota-window");
-      if (quotaMetrics.length >= 2) {
-        // show first two like 5h + weekly
-        summary = quotaMetrics.slice(0, 2).map(m => `${m.label.replace("OpenCode ", "")} ${Math.round(m.remainingFraction*100)}%`).join(" · ");
-        summary = `OpenCode ${summary}`;
-      } else if (quotaMetrics[0]) {
-        summary = `${quotaMetrics[0].label} ${Math.round(quotaMetrics[0].remainingFraction*100)}%`;
-      }
+      const quotaMetrics = metrics.filter(
+        (metric): metric is Extract<Metric, { kind: "quota-window" }> => metric.kind === "quota-window",
+      );
+      const summary = compactQuotaSummary("OpenCode", quotaMetrics, 2);
       return {
         adapterId: this.id,
         sourceProviderId: target.providerId,
