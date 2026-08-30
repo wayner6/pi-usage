@@ -4,29 +4,39 @@ Pi Usage 是一个适用于 [Pi](https://github.com/earendil-works/pi-mono) 和 
 
 ## 能看到什么
 
-- 当前模型的简洁状态栏，例如：`Codex · 5h 92% · 7d 85%`。
-- 服务商公开提供的剩余额度、限流窗口和重置时间。
-- 通过 `/usage` 查看所有已配置服务商的详细信息。
+- 当前模型的简洁状态栏，例如：`Codex · 5h 92% (resets in 2h) · 7d 85% (resets in 5d 3h)`。
+- 服务商公开提供的剩余余额、额度/限流窗口和重置时间。
+- 通过 `/usage` 查看已配置服务商的详细信息，包括不可用和不支持状态。
 
 显示会随当前模型切换。服务商返回重置时间时，额度窗口会显示重置倒计时；请求失败不会被错误转换为余额或额度为零。
 
-## 支持的服务商
+## 服务商支持情况
 
-| 服务商 | 认证方式 | 可显示的信息 |
-| --- | --- | --- |
-| OpenAI Codex | ChatGPT Plus/Pro OAuth | 5 小时、7 天额度窗口 |
-| xAI / Grok | OAuth | 账户验证和消费限额状态 |
-| Anthropic Claude | Claude OAuth 或 API Key | OAuth：5 小时与 7 天订阅额度；API Key：请求数/Token 限流余量 |
-| DeepSeek | API Key | 账户余额 |
-| GLM / 智谱 BigModel | API Key | Coding Plan 额度窗口；普通按量付费 Key 无法通过官方 API 查询 |
-| OpenRouter | OAuth 或 API Key | 账户可用余额（或 Key 剩余限额）与累计消耗 |
-| OpenCode Go | API Key | 5 小时、周、月滚动额度窗口 |
-| Kimi Code / 月之暗面 | Kimi OAuth 或 API Key | 5 小时滑动限制、周度额度与重置倒计时 |
-| CLIProxyAPI | `pi-bridge` 插件 | 上游实际返回的额度窗口与重置时间（需在代理服务端安装 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 插件） |
+| 服务商 | 支持级别 | 认证方式 | 实际显示内容 |
+| --- | --- | --- | --- |
+| OpenAI Codex | 额度 | ChatGPT Plus/Pro OAuth | 5 小时与 7 天剩余额度及重置倒计时 |
+| Anthropic Claude | 额度 / 有限支持 | Claude OAuth 或 API Key | OAuth：5 小时与 7 天订阅额度；API Key：仅请求数/Token 限流余量 |
+| DeepSeek | 余额 | API Key | 官方接口返回的各币种账户余额 |
+| GLM / 智谱 BigModel | 额度 / 有限支持 | API Key | Coding Plan：5 小时与 7 天额度；普通按量付费 Key：官方没有余额/额度查询接口 |
+| OpenRouter | 余额 | OAuth 解析出的 Key 或 API Key | 账户余额或 Key 剩余限额，以及累计消耗 |
+| OpenCode Go | 额度 | API Key | 5 小时、周、月滚动窗口；底部显示 5 小时和周额度，`/usage` 显示全部窗口 |
+| Kimi Code | 额度 / 状态 | Kimi OAuth 或 Kimi Code API Key | 有效套餐：5 小时与周额度；无有效套餐或额度耗尽：`No active quota` |
+| CLIProxyAPI | 取决于上游 | 代理 API Key + 服务端 `pi-bridge` | 只显示 `pi-bridge` 实际返回的账户和额度池 |
+| xAI / Grok | 仅状态 | OAuth | 账户身份和可用/消费限额状态；没有数值型订阅额度 |
+| Google Vertex AI | 不支持额度 | API Key、ADC 或服务账号 | 明确显示 `Unsupported`；不存在单一的订阅式额度窗口 |
+| Google Gemini API / AI Studio | 不支持额度 | API Key | 暂无可用的官方账户额度/余额查询接口 |
 
-Pi Usage 直接复用 Pi 中已有的服务商认证（OAuth 令牌或 API Key）。CLIProxyAPI 通过服务端 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 插件查询（需要 CLIProxyAPI 服务端已部署该插件），本插件绝不会读取、传输或存储其 Management Key。代理额度只按 `pi-bridge` 的实际返回显示；例如 Antigravity 的 Claude 账户如果只返回一个共享额度池，插件不会虚构成独立的 5 小时和周额度。
+### 显示与匹配规则
 
-Google Vertex AI 会被识别，但它没有单一的订阅式余额或额度窗口；其项目额度由需要项目级 IAM 权限的 Cloud Quotas 与 Cloud Monitoring 多维指标组成。因此 Pi Usage 会明确显示“不支持”，而不是一直停留在 `Loading...`。没有有效 Kimi Code 套餐的 Kimi OAuth 会显示 `No active quota`，不会再误报为认证失败。
+- 原生服务商会显示其官方用量接口返回的相关短期和周度窗口；接口提供重置时间时，同时显示重置倒计时。
+- 底部状态栏跟随当前模型；`/usage` 显示每个已配置来源保留的完整指标。
+- CLIProxyAPI 数据绝不推测。只有 `pi-bridge` 返回独立的 5 小时和周额度池时，CPA 中的 Claude 或 Gemini 才会显示两个窗口；如果 Antigravity 只返回一个共享模型池，Pi Usage 只显示该额度池及其重置时间。
+- 代理账户和额度组按模型族与模型 ID 匹配，当前模型不会借用其他服务商的额度。
+- 缺少认证、没有有效套餐、服务商不支持、上游请求失败和真实的零余额是不同状态；请求失败不会被转换成 `0%`。
+
+Pi Usage 复用 Pi 已解析的服务商认证。CLIProxyAPI 通过服务端 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 查询，因此必须在 CLIProxyAPI 服务端安装该插件。Pi Usage 不会请求、读取或存储 CLIProxyAPI Management Key。
+
+Google Vertex 的额度属于项目、地区、模型和指标等多维 Cloud Quotas/Cloud Monitoring 数据，并需要额外的项目 IAM 权限，无法诚实地压缩成一个底部百分比。Kimi OAuth 只能证明账户认证成功，不能证明存在有效付费套餐；没有可用 Kimi Code 额度时显示 `No active quota`，而不是 `Unauthorized`。
 
 ## 安装
 
@@ -88,7 +98,7 @@ pi update --extensions
 
 | 命令 | 作用 |
 | --- | --- |
-| `/usage` 或 `/quota` | 查看全部可用服务商的余额和额度 |
+| `/usage` 或 `/quota` | 查看已配置服务商的余额、额度以及状态/错误详情 |
 | `/usage current` | 只查看当前模型所属服务商 |
 | `/usage refresh` | 立即刷新当前服务商 |
 | `/usage doctor` | 查看认证、适配器和桥接服务诊断信息 |

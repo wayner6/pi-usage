@@ -137,8 +137,7 @@ export class ProviderUsageController {
     }
 
     const targets = await Promise.all([...providerIds].map((id) => this.target(ctx, id)));
-    const snapshots = await Promise.all(targets.map((target) => this.fetchTarget(target, force)));
-    return snapshots.filter((snapshot) => snapshot.state !== "unsupported");
+    return Promise.all(targets.map((target) => this.fetchTarget(target, force)));
   }
 
   /**

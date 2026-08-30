@@ -6,29 +6,39 @@ Pi Usage is a [Pi](https://github.com/earendil-works/pi-mono) and [pi-web](https
 
 ## What it shows
 
-- A compact status line for the active model, such as `Codex · 5h 92% · 7d 85%`.
-- Remaining balance, rate-limit windows, and reset times when the provider exposes them.
-- Details for every configured provider through `/usage`.
+- A compact status line for the active model, such as `Codex · 5h 92% (resets in 2h) · 7d 85% (resets in 5d 3h)`.
+- Remaining balance, quota/rate-limit windows, and reset times when the provider exposes them.
+- Details for configured providers through `/usage`, including unavailable or unsupported states.
 
 The display follows the active model. Quota windows include reset countdowns when the provider supplies reset timestamps. Request failures are never converted into zero balance.
 
-## Supported providers
+## Provider support
 
-| Provider | Authentication | Available information |
-| --- | --- | --- |
-| OpenAI Codex | ChatGPT Plus/Pro OAuth | 5-hour and 7-day quota windows |
-| xAI / Grok | OAuth | Account verification and spending-limit status |
-| Anthropic Claude | Claude OAuth or API key | OAuth: 5-hour and 7-day subscription windows; API key: request/token rate-limit headroom |
-| DeepSeek | API key | Account balance |
-| GLM / Zhipu BigModel | API key | Coding Plan quota windows; standard pay-as-you-go keys cannot be queried through the official API |
-| OpenRouter | OAuth or API key | Account balance (or key remaining limit) and total usage |
-| OpenCode Go | API key | Rolling 5h / weekly / monthly quota windows |
-| Kimi Code / Moonshot | Kimi OAuth or API key | 5-hour rolling limit, weekly quota, and reset times |
-| CLIProxyAPI | `pi-bridge` plugin | Exact upstream quota windows and reset times (requires [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) installed on the CLIProxyAPI server) |
+| Provider | Support level | Authentication | What is displayed |
+| --- | --- | --- | --- |
+| OpenAI Codex | Quota | ChatGPT Plus/Pro OAuth | 5-hour and 7-day remaining quota with reset countdowns |
+| Anthropic Claude | Quota / limited | Claude OAuth or API key | OAuth: 5-hour and 7-day subscription quota; API key: request/token rate-limit headroom only |
+| DeepSeek | Balance | API key | Official account balances by currency |
+| GLM / Zhipu BigModel | Quota / limited | API key | Coding Plan: 5-hour and 7-day quota; standard pay-as-you-go keys: no official balance/quota query |
+| OpenRouter | Balance | OAuth-resolved key or API key | Account balance, or key remaining limit, plus total usage |
+| OpenCode Go | Quota | API key | Rolling 5-hour, weekly, and monthly windows; the footer shows 5-hour and weekly, `/usage` shows all windows |
+| Kimi Code | Quota / status | Kimi OAuth or Kimi Code API key | Active plan: 5-hour and weekly quota; no active plan or exhausted credits: `No active quota` |
+| CLIProxyAPI | Upstream-dependent | Proxy API key plus server-side `pi-bridge` | Only the accounts and quota pools actually returned by `pi-bridge` |
+| xAI / Grok | Status only | OAuth | Account identity and active/spending-limit status; no numerical subscription quota |
+| Google Vertex AI | Unsupported | API key, ADC, or service account | Explicit `Unsupported`; no single subscription-style quota exists |
+| Google Gemini API / AI Studio | Unsupported | API key | No supported official account quota/balance endpoint |
 
-Pi Usage uses Pi's existing provider authentication (OAuth tokens or API keys). CLIProxyAPI is queried via [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) (which must be installed on your CLIProxyAPI proxy server); its Management Key is never read or stored by this plugin. Proxy windows are displayed only when `pi-bridge` returns them: for example, an Antigravity Claude account that exposes one shared pool cannot be presented as separate 5-hour and weekly limits.
+### Display and matching rules
 
-Google Vertex AI is detected but does not expose one subscription-style balance/window. Its project quotas are multi-dimensional Cloud Quotas and Cloud Monitoring metrics requiring project-specific IAM permissions, so Pi Usage reports it as unsupported instead of leaving the footer at `Loading...`. Kimi OAuth without an active Kimi Code plan is reported as `No active quota`, not as an authentication failure.
+- Native providers display every relevant short-term and weekly window returned by their official usage endpoint, including reset countdowns when available.
+- The footer follows the active model. `/usage` shows the full metrics retained for each configured source.
+- CLIProxyAPI data is never inferred. A CPA Claude or Gemini model shows 5-hour and weekly values only if `pi-bridge` returns distinct 5-hour and weekly pools. If Antigravity returns one shared model pool, Pi Usage displays that one pool and its reset time.
+- Proxy accounts and groups are matched by model family and model ID. A model cannot borrow a foreign provider's quota.
+- Missing authentication, no active plan, unsupported provider, upstream failure, and a genuine zero balance are separate states. Failures are not converted to `0%`.
+
+Pi Usage uses Pi's resolved provider authentication. CLIProxyAPI is queried through the server-side [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge), which must be installed on the CLIProxyAPI server. Pi Usage never requests, reads, or stores the CLIProxyAPI Management Key.
+
+Google Vertex quotas are project-, region-, model-, and metric-specific Cloud Quotas/Cloud Monitoring data requiring additional project IAM permissions. They cannot be represented honestly as one footer percentage. Kimi OAuth proves account authentication but does not prove an active paid plan, so an account without usable Kimi Code credits is shown as `No active quota`, not `Unauthorized`.
 
 ## Install
 
@@ -90,7 +100,7 @@ Use these commands in the chat input:
 
 | Command | Result |
 | --- | --- |
-| `/usage` or `/quota` | Show all available provider balances and quotas |
+| `/usage` or `/quota` | Show configured provider balances, quotas, and status/error details |
 | `/usage current` | Show the active model's provider only |
 | `/usage refresh` | Refresh the active provider now |
 | `/usage doctor` | Show authentication, adapter, and bridge diagnostics |
