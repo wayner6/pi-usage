@@ -31,6 +31,17 @@ interface WhamUsageResponse {
   } | null;
 }
 
+function windowLabel(window: WhamWindow | null | undefined, fallback: string): string {
+  const seconds = window?.limit_window_seconds;
+  if (seconds === 18_000) return "Codex 5h";
+  if (seconds === 604_800) return "Codex 7d";
+  if (typeof seconds === "number" && seconds > 0) {
+    if (seconds % 86_400 === 0) return `Codex ${seconds / 86_400}d`;
+    if (seconds % 3_600 === 0) return `Codex ${seconds / 3_600}h`;
+  }
+  return fallback;
+}
+
 function parseWindow(
   window: WhamWindow | null | undefined,
   defaultId: string,
@@ -50,7 +61,7 @@ function parseWindow(
   return {
     kind: "quota-window",
     id: defaultId,
-    label: defaultLabel,
+    label: windowLabel(window, defaultLabel),
     remainingFraction,
     ...(resetAt ? { resetAt } : {}),
   };
@@ -181,6 +192,13 @@ export const openAICodexAdapter: UsageAdapter = {
         },
       ];
 
+      const quotaMetrics = metrics.filter(
+        (metric): metric is Extract<Metric, { kind: "quota-window" }> => metric.kind === "quota-window",
+      );
+      const summary = quotaMetrics.length
+        ? `Codex · ${quotaMetrics.map((metric) => `${metric.label.replace(/^Codex\s+/i, "")} ${Math.round(metric.remainingFraction * 100)}%`).join(" · ")}`
+        : undefined;
+
       return {
         adapterId: this.id,
         sourceProviderId: target.providerId,
@@ -188,6 +206,7 @@ export const openAICodexAdapter: UsageAdapter = {
         state: metrics.length ? "ok" : "empty",
         fetchedAt,
         accounts,
+        ...(summary ? { summary } : {}),
       };
     } catch (error) {
       throw new Error(safeError(error));

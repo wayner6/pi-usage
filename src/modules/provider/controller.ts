@@ -61,6 +61,7 @@ export class ProviderUsageController {
     if (adapter.id === "glm") return this.config.adapters.glm.enabled;
     if (adapter.id === "openrouter") return this.config.adapters.openrouter.enabled;
     if (adapter.id === "opencode-go") return this.config.adapters.opencodeGo.enabled;
+    if (adapter.id === "kimi-coding") return this.config.adapters.kimiCoding.enabled;
     return true;
   }
 
@@ -107,6 +108,7 @@ export class ProviderUsageController {
       "openrouter",
       "opencode-go",
       "opencode",
+      "kimi-coding",
     ];
     for (const id of knownProviders) {
       if (ctx.modelRegistry.getProviderAuthStatus(id).configured) {
@@ -132,20 +134,23 @@ export class ProviderUsageController {
    */
   currentView(ctx: ExtensionContext, snapshot?: UsageSnapshot, model: Model<Api> | undefined = ctx.model): UsageSnapshot | undefined {
     if (!snapshot) return undefined;
-    if (snapshot.adapterId !== "cliproxy-pi-bridge" && snapshot.adapterId !== "openai-codex") return snapshot;
 
-    const matched = matchModelAcrossAccounts(snapshot.accounts, model?.id);
+    // Native adapters already know the exact semantics of their own metrics.
+    // Cross-account/model matching is only needed for multiplexed pi-bridge snapshots.
+    if (snapshot.adapterId !== "cliproxy-pi-bridge") return snapshot;
+
+    const matched = matchModelAcrossAccounts(snapshot.accounts, model?.id, model?.provider);
     if (matched) {
       let summary: string;
 
       if (matched.quota.multiWindows && matched.quota.multiWindows.length > 1) {
-        // Special case: Multiple time windows for the same model (e.g. Codex 5h and 7d)
+        const family = matched.quota.multiWindows[0]!.label.split(/\s+/)[0] || matched.quota.label;
         const parts = matched.quota.multiWindows.map((q) => {
-          const sub = q.label.replace(/^Codexs+/, "");
+          const sub = q.label.replace(new RegExp(`^${family}\\s+`, "i"), "");
           const reset = q.resetAt ? relativeTime(q.resetAt) : undefined;
           return `${sub} ${Math.round(q.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}`;
         });
-        summary = `Codex ${parts.join(" · ")}`;
+        summary = `${family} · ${parts.join(" · ")}`;
       } else {
         const reset = matched.quota.resetAt ? relativeTime(matched.quota.resetAt) : undefined;
         summary = `${matched.quota.label} ${Math.round(matched.quota.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}`;
@@ -185,9 +190,25 @@ export class ProviderUsageController {
       if (compatibleAccounts.length > 0) {
         const first = compatibleAccounts[0]!;
         if (first.metrics.length > 0) {
-          const worst = first.metrics
-            .filter((m): m is Extract<Metric, { kind: "quota-window" }> => m.kind === "quota-window")
-            .sort((a, b) => a.remainingFraction - b.remainingFraction)[0];
+          const quotaMetrics = first.metrics
+            .filter((m): m is Extract<Metric, { kind: "quota-window" }> => m.kind === "quota-window");
+
+          // Quota-only Codex accounts expose model-independent 5h/7d windows.
+          // Keep both instead of collapsing to the most constrained one.
+          if (first.provider.toLowerCase().includes("codex") && quotaMetrics.length > 1) {
+            const parts = quotaMetrics.map((metric) => {
+              const label = metric.label.replace(/^Codex\s+/i, "");
+              const reset = metric.resetAt ? relativeTime(metric.resetAt) : undefined;
+              return `${label} ${Math.round(metric.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}`;
+            });
+            return {
+              ...snapshot,
+              accounts: [first],
+              summary: `Codex · ${parts.join(" · ")}`,
+            };
+          }
+
+          const worst = [...quotaMetrics].sort((a, b) => a.remainingFraction - b.remainingFraction)[0];
           if (worst) {
             const reset = worst.resetAt ? relativeTime(worst.resetAt) : undefined;
             return {

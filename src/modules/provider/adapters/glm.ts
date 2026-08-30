@@ -24,6 +24,8 @@ interface QuotaLimitResponse {
     limits?: Array<{
       type: string;
       percentage: number;
+      unit?: number;
+      number?: number;
       nextResetTime?: number;
       currentValue?: number;
       usage?: number;
@@ -128,27 +130,35 @@ export const glmAdapter: UsageAdapter = {
           const quotaJson = (await quotaRes.json()) as QuotaLimitResponse;
           if (quotaJson.success && quotaJson.data?.limits) {
             const limits = quotaJson.data.limits;
-            const tokenLimits = limits
-              .filter((l) => l.type === "TOKENS_LIMIT")
-              .sort((a, b) => (a.nextResetTime ?? 0) - (b.nextResetTime ?? 0));
+            const tokenLimits = limits.filter((l) => l.type === "TOKENS_LIMIT");
 
             const metrics: Metric[] = [];
             const planLevel = quotaJson.data.level ? quotaJson.data.level.toUpperCase() : "Coding Plan";
 
-            // Multi-window tokens limit (e.g. 5h and weekly/7d)
-            if (tokenLimits.length > 0) {
-              tokenLimits.forEach((tl, idx) => {
-                const label = idx === 0 ? "GLM 5h" : "GLM 7d";
-                const used = Math.max(0, Math.min(100, tl.percentage));
-                const remainingFraction = (100 - used) / 100;
-                const resetAt = tl.nextResetTime ? new Date(tl.nextResetTime).toISOString() : undefined;
-                metrics.push({
-                  kind: "quota-window",
-                  id: `glm-window-${idx}`,
-                  label,
-                  remainingFraction,
-                  ...(resetAt ? { resetAt } : {}),
-                });
+            // The endpoint identifies windows by unit: 3 = hour (number 5),
+            // 6 = week. Array order is not stable and must not determine labels.
+            const classifiedTokenLimits = tokenLimits.flatMap((limit) => {
+              const window = limit.unit === 3 && (limit.number === undefined || limit.number === 5)
+                ? { id: "glm-5h", label: "GLM 5h", order: 0 }
+                : limit.unit === 6
+                  ? { id: "glm-7d", label: "GLM 7d", order: 1 }
+                  : undefined;
+              return window ? [{ limit, ...window }] : [];
+            }).sort((a, b) => a.order - b.order);
+
+            for (const { limit, id, label } of classifiedTokenLimits) {
+              const used = Math.max(0, Math.min(100, limit.percentage));
+              const remainingFraction = (100 - used) / 100;
+              const resetMs = limit.nextResetTime && limit.nextResetTime < 10_000_000_000
+                ? limit.nextResetTime * 1000
+                : limit.nextResetTime;
+              const resetAt = resetMs ? new Date(resetMs).toISOString() : undefined;
+              metrics.push({
+                kind: "quota-window",
+                id,
+                label,
+                remainingFraction,
+                ...(resetAt ? { resetAt } : {}),
               });
             }
 
@@ -176,7 +186,7 @@ export const glmAdapter: UsageAdapter = {
             let summary = `GLM · ${planLevel}`;
             if (metrics.length > 0 && metrics[0]!.kind === "quota-window") {
               const parts = metrics
-                .filter((m): m is Extract<Metric, { kind: "quota-window" }> => m.kind === "quota-window" && m.id.startsWith("glm-window"))
+                .filter((m): m is Extract<Metric, { kind: "quota-window" }> => m.kind === "quota-window" && (m.id === "glm-5h" || m.id === "glm-7d"))
                 .map((m) => {
                   const sub = m.label.replace(/^GLM\s+/, "");
                   return `${sub} ${Math.round(m.remainingFraction * 100)}%`;

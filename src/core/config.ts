@@ -14,8 +14,9 @@ export interface UsageConfig {
     glm: { enabled: boolean };
     openrouter: { enabled: boolean };
     opencodeGo: { enabled: boolean };
+    kimiCoding: { enabled: boolean };
   };
-  providerOverrides: Record<string, "deepseek" | "cliproxy-pi-bridge" | "openai-codex" | "xai" | "anthropic" | "glm" | "openrouter" | "opencode-go" | "disabled">;
+  providerOverrides: Record<string, "deepseek" | "cliproxy-pi-bridge" | "openai-codex" | "xai" | "anthropic" | "glm" | "openrouter" | "opencode-go" | "kimi-coding" | "disabled">;
   modelMappings: Array<{ provider: string; modelPattern: string; quotaProvider: string }>;
 }
 
@@ -31,6 +32,7 @@ export const DEFAULT_CONFIG: UsageConfig = {
     glm: { enabled: true },
     openrouter: { enabled: true },
     opencodeGo: { enabled: true },
+    kimiCoding: { enabled: true },
   },
   providerOverrides: {},
   modelMappings: [],
@@ -66,7 +68,8 @@ export async function loadConfig(): Promise<UsageConfig> {
         anthropic: { enabled: parsed.adapters?.anthropic?.enabled ?? DEFAULT_CONFIG.adapters.anthropic.enabled },
         glm: { enabled: parsed.adapters?.glm?.enabled ?? DEFAULT_CONFIG.adapters.glm.enabled },
         openrouter: { enabled: (parsed.adapters as any)?.openrouter?.enabled ?? DEFAULT_CONFIG.adapters.openrouter.enabled },
-        opencodeGo: { enabled: (parsed.adapters as any)?.opencodeGo?.enabled ?? DEFAULT_CONFIG.adapters.opencodeGo.enabled },
+        opencodeGo: { enabled: parsed.adapters?.opencodeGo?.enabled ?? DEFAULT_CONFIG.adapters.opencodeGo.enabled },
+        kimiCoding: { enabled: parsed.adapters?.kimiCoding?.enabled ?? DEFAULT_CONFIG.adapters.kimiCoding.enabled },
       },
       providerOverrides: parsed.providerOverrides ?? {},
       modelMappings: Array.isArray(parsed.modelMappings) ? parsed.modelMappings : [],

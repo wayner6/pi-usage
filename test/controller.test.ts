@@ -97,6 +97,76 @@ test("controller.refreshAll correctly isolates model baseUrl and filters proxy a
   assert.equal(codexSnapshot.accounts[0]?.metrics.length, 2);
 });
 
+test("controller.currentView preserves both native Codex windows", () => {
+  const controller = new ProviderUsageController(DEFAULT_CONFIG);
+  const snapshot: UsageSnapshot = {
+    adapterId: "openai-codex",
+    sourceProviderId: "openai-codex",
+    displayName: "OpenAI Codex",
+    state: "ok",
+    fetchedAt: new Date().toISOString(),
+    summary: "Codex · 5h 91% · 7d 74%",
+    accounts: [{
+      id: "codex-account",
+      provider: "openai-codex",
+      label: "ChatGPT Plus",
+      metrics: [
+        { kind: "quota-window", id: "primary-window", label: "Codex 5h", remainingFraction: 0.91 },
+        { kind: "quota-window", id: "secondary-window", label: "Codex 7d", remainingFraction: 0.74 },
+      ],
+    }],
+  };
+
+  const view = controller.currentView({} as any, snapshot, { id: "gpt-5.4", provider: "openai-codex" } as any);
+  assert.equal(view?.summary, "Codex · 5h 91% · 7d 74%");
+  assert.equal(view?.accounts[0]?.metrics.length, 2);
+});
+
+test("controller.currentView shows both CPA Codex windows but does not invent a Claude 5h window", () => {
+  const controller = new ProviderUsageController(DEFAULT_CONFIG);
+  const snapshot: UsageSnapshot = {
+    adapterId: "cliproxy-pi-bridge",
+    sourceProviderId: "MyCPA",
+    displayName: "MyCPA",
+    state: "ok",
+    fetchedAt: new Date().toISOString(),
+    accounts: [
+      {
+        id: "codex-0",
+        provider: "codex",
+        label: "Codex account",
+        metrics: [
+          { kind: "quota-window", id: "primary-window", label: "5h Window", remainingFraction: 0.91 },
+          { kind: "quota-window", id: "secondary-window", label: "7d Window", remainingFraction: 0.74 },
+        ],
+        rawGroups: [
+          { id: "primary-window", label: "5h Window", remainingFraction: 0.91, models: [{ id: "primary-window" }] },
+          { id: "secondary-window", label: "7d Window", remainingFraction: 0.74, models: [{ id: "secondary-window" }] },
+        ],
+      },
+      {
+        id: "antigravity-0",
+        provider: "antigravity",
+        label: "Antigravity account",
+        metrics: [{ kind: "quota-window", id: "thinking-models", label: "Claude", remainingFraction: 0.2 }],
+        rawGroups: [{
+          id: "thinking-models",
+          label: "Thinking Models",
+          remainingFraction: 0.2,
+          models: [{ id: "claude-opus-4-6-thinking" }],
+        }],
+      },
+    ],
+  };
+
+  const codex = controller.currentView({} as any, snapshot, { id: "proxy-gpt-5.4", provider: "MyCPA" } as any);
+  assert.equal(codex?.summary, "Codex · 5h 91% · 7d 74%");
+
+  const claude = controller.currentView({} as any, snapshot, { id: "ag-claude-opus-4-6-thinking", provider: "MyCPA" } as any);
+  assert.match(claude?.summary ?? "", /^Claude/);
+  assert.doesNotMatch(claude?.summary ?? "", /5h/);
+});
+
 test("controller.currentView does not mismatch foreign quotas to unsupported or different-family models", async () => {
   const controller = new ProviderUsageController(DEFAULT_CONFIG);
   const snapshot: UsageSnapshot = {

@@ -10,7 +10,7 @@ import { glmAdapter } from "../src/modules/provider/adapters/glm.ts";
 import { openRouterAdapter } from "../src/modules/provider/adapters/openrouter.ts";
 import { openCodeGoAdapter } from "../src/modules/provider/adapters/opencode-go.ts";
 import { kimiCodingAdapter } from "../src/modules/provider/adapters/kimi-coding.ts";
-import { matchModelAcrossAccounts, matchModelGroup, isAccountRelevantToModels } from "../src/modules/provider/matching.ts";
+import { deduplicateSharedQuotaGroups, matchModelAcrossAccounts, matchModelGroup, isAccountRelevantToModels } from "../src/modules/provider/matching.ts";
 import { DEFAULT_CONFIG } from "../src/core/config.ts";
 
 const fixture = async (name: string) => readFile(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
@@ -50,6 +50,36 @@ test("pi-bridge parses quota windows (group-level only, no model duplicates)", a
   assert.equal(codex?.metrics.length, 2);
 });
 
+test("deduplicated shared Claude pools still use the active model's tier label", () => {
+  const groups = deduplicateSharedQuotaGroups([
+    {
+      id: "thinking-models",
+      label: "Thinking Models",
+      remainingFraction: 0.2,
+      resetTime: "2026-09-01T00:00:00Z",
+      models: [{ id: "claude-opus-4-6-thinking" }],
+    },
+    {
+      id: "other-models",
+      label: "Other Models",
+      remainingFraction: 0.2,
+      resetTime: "2026-09-01T00:00:00Z",
+      models: [{ id: "claude-sonnet-4-6" }],
+    },
+  ]);
+  const matched = matchModelAcrossAccounts([{ provider: "antigravity", rawGroups: groups }], "ag-claude-sonnet-4-6");
+  assert.equal(groups.length, 1);
+  assert.equal(matched?.quota.label, "Claude Sonnet");
+});
+
+test("deduplication never merges distinct temporal windows with coincidentally equal values", () => {
+  const groups = deduplicateSharedQuotaGroups([
+    { id: "primary-window", label: "5h Window", remainingFraction: 1, resetTime: "2026-09-01T00:00:00Z" },
+    { id: "secondary-window", label: "7d Window", remainingFraction: 1, resetTime: "2026-09-01T00:00:00Z" },
+  ]);
+  assert.equal(groups.length, 2);
+});
+
 test("pi-bridge missing endpoint is not reported as zero quota", async () => {
   const snapshot = await cliProxyBridgeAdapter.fetch({
     target: { providerId: "custom-gateway", baseUrl: "https://cpa.example.com/v1", auth: auth() },
@@ -81,6 +111,7 @@ test("openai-codex adapter parses official wham usage response", async () => {
   assert.equal(Math.round((metrics[0] as any).remainingFraction * 100), 99);
   assert.equal(metrics[1]?.label, "Codex 7d");
   assert.equal(Math.round((metrics[1] as any).remainingFraction * 100), 78);
+  assert.equal(snapshot.summary, "Codex · 5h 99% · 7d 78%");
 });
 
 test("xai adapter verifies userinfo and parses active status", async () => {
@@ -105,29 +136,26 @@ test("xai adapter verifies userinfo and parses active status", async () => {
   assert.equal(snapshot.accounts[0]?.label, "alex@example.com");
 });
 
-test("anthropic adapter handles ratelimit headers and subscription status", async () => {
+test("anthropic OAuth adapter parses subscription 5h and 7d windows", async () => {
   const snapshot = await anthropicAdapter.fetch({
     target: {
       providerId: "anthropic",
       baseUrl: "https://api.anthropic.com",
-      auth: { auth: { apiKey: "mock-anthropic-token" }, source: "oauth" },
+      auth: { auth: { apiKey: "mock-anthropic-oauth-token" }, source: "oauth" },
     },
     signal: new AbortController().signal,
-    force: false,
-    fetchFn: async () => {
-      return new Response(JSON.stringify({}), {
-        status: 200,
-        headers: {
-          "anthropic-ratelimit-requests-remaining": "40",
-          "anthropic-ratelimit-requests-limit": "50",
-          "anthropic-ratelimit-tokens-remaining": "80000",
-          "anthropic-ratelimit-tokens-limit": "100000",
-        },
-      });
+    force: true,
+    fetchFn: async (url) => {
+      assert.equal(String(url), "https://api.anthropic.com/api/oauth/usage");
+      return new Response(JSON.stringify({
+        five_hour: { utilization: 20, resets_at: "2026-08-30T10:00:00Z" },
+        seven_day: { utilization: 35, resets_at: "2026-09-05T10:00:00Z" },
+        seven_day_sonnet: { utilization: 40, resets_at: "2026-09-05T11:00:00Z" },
+      }), { status: 200, headers: { "content-type": "application/json" } });
     },
   });
   assert.equal(snapshot.state, "ok");
-  assert.equal(snapshot.summary, "Claude 80%");
+  assert.equal(snapshot.summary, "Claude · 5h 80% · 7d 65%");
   assert.equal(snapshot.accounts[0]?.metrics.length, 3);
 });
 
@@ -138,8 +166,8 @@ test("glm adapter parses coding plan multi-window quota correctly", async () => 
     data: {
       level: "pro",
       limits: [
-        { type: "TOKENS_LIMIT", percentage: 25, nextResetTime: Date.now() + 18000000 },
-        { type: "TOKENS_LIMIT", percentage: 50, nextResetTime: Date.now() + 604800000 },
+        { type: "TOKENS_LIMIT", unit: 6, number: 1, percentage: 50, nextResetTime: Date.now() + 604800000 },
+        { type: "TOKENS_LIMIT", unit: 3, number: 5, percentage: 25, nextResetTime: Date.now() + 18000000 },
         { type: "TIME_LIMIT", usage: 1000, currentValue: 100, remaining: 900 },
       ],
     },
@@ -310,6 +338,25 @@ test("cliproxy bridge adapter filters accounts when configuredModelIds are suppl
   assert.equal(snapshot.accounts[0]?.provider, "antigravity");
 });
 
+test("cliproxy bridge preserves model-independent Codex windows for GPT model IDs", async () => {
+  const body = await fixture("pi-bridge-usage.json");
+  const snapshot = await cliProxyBridgeAdapter.fetch({
+    target: {
+      providerId: "MyCPA",
+      baseUrl: "https://cpa.example.com/v1",
+      auth: auth(),
+      configuredModelIds: ["proxy-gpt-5.4"],
+    },
+    signal: new AbortController().signal,
+    force: false,
+    fetchFn: async () => new Response(body, { status: 200, headers: { "content-type": "application/json" } }),
+  });
+
+  assert.equal(snapshot.accounts.length, 1);
+  assert.equal(snapshot.accounts[0]?.provider, "codex");
+  assert.deepEqual(snapshot.accounts[0]?.metrics.map((metric) => metric.label), ["Codex 5h", "Codex 7d"]);
+});
+
 
 test("openrouter adapter parses credits", async () => {
   const body = await fixture("openrouter-credits.json");
@@ -390,7 +437,7 @@ test("kimi-coding adapter parses 5h and weekly quotas correctly", async () => {
   });
 
   assert.equal(snapshot.state, "ok");
-  assert.equal(snapshot.summary, "Kimi 5h 90% · Weekly 90%");
+  assert.equal(snapshot.summary, "Kimi · 5h 90% · Weekly 90%");
   assert.equal(snapshot.accounts.length, 1);
   assert.equal(snapshot.accounts[0]?.metrics.length, 2);
 });
@@ -421,7 +468,7 @@ test("kimi-coding adapter handles 429 quota exhausted gracefully", async () => {
     fetchFn: async () => new Response(JSON.stringify(errorResponse), { status: 429, headers: { "content-type": "application/json" } }),
   });
 
-  assert.equal(snapshot.state, "ok");
-  assert.equal(snapshot.summary, "Kimi · 0% (Credits used up.)");
-  assert.equal((snapshot.accounts[0]?.metrics[0] as any)?.remainingFraction, 0);
+  assert.equal(snapshot.state, "empty");
+  assert.equal(snapshot.summary, "Quota exhausted");
+  assert.equal(snapshot.accounts[0]?.metrics[0]?.kind, "status");
 });

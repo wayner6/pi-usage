@@ -18,15 +18,15 @@ The display follows the active model. It does not turn request failures into a z
 | --- | --- | --- |
 | OpenAI Codex | ChatGPT Plus/Pro OAuth | 5-hour and 7-day quota windows |
 | xAI / Grok | OAuth | Account verification and spending-limit status |
-| Anthropic Claude | Claude OAuth or API key | Subscription status or API rate-limit headers |
+| Anthropic Claude | Claude OAuth or API key | OAuth: 5-hour and 7-day subscription windows; API key: request/token rate-limit headroom |
 | DeepSeek | API key | Account balance |
 | GLM / Zhipu BigModel | API key | Coding Plan quota windows; standard pay-as-you-go keys cannot be queried through the official API |
 | OpenRouter | OAuth or API key | Account balance (or key remaining limit) and total usage |
 | OpenCode Go | API key | Rolling 5h / weekly / monthly quota windows |
 | Kimi Code / Moonshot | Kimi OAuth or API key | 5-hour rolling limit, weekly quota, and reset times |
-| CLIProxyAPI | `pi-bridge` plugin | Upstream quota windows and reset times (requires [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) installed on the CLIProxyAPI server) |
+| CLIProxyAPI | `pi-bridge` plugin | Exact upstream quota windows and reset times (requires [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) installed on the CLIProxyAPI server) |
 
-Pi Usage uses Pi's existing provider authentication (OAuth tokens or API keys). CLIProxyAPI is queried via [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) (which must be installed on your CLIProxyAPI proxy server); its Management Key is never read or stored by this plugin.
+Pi Usage uses Pi's existing provider authentication (OAuth tokens or API keys). CLIProxyAPI is queried via [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) (which must be installed on your CLIProxyAPI proxy server); its Management Key is never read or stored by this plugin. Proxy windows are displayed only when `pi-bridge` returns them: for example, an Antigravity Claude account that exposes one shared pool cannot be presented as separate 5-hour and weekly limits.
 
 ## Install
 

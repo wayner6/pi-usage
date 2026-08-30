@@ -1,6 +1,6 @@
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
 import { bridgeUrl, safeError, sameOriginFetch } from "../../../core/security.ts";
-import { isAccountRelevantToModels, isGroupRelevantToModels, deduplicateSharedQuotaGroups } from "../matching.ts";
+import { isAccountRelevantToModels, isGroupRelevantToModels, deduplicateSharedQuotaGroups, friendlyGroupName } from "../matching.ts";
 
 const NATIVE_PROVIDER_IDS = new Set([
   "deepseek",
@@ -93,6 +93,12 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
 
           // 2. Deduplicate shared quota pools (groups with identical remaining fraction and reset time)
           const deduplicatedGroups = deduplicateSharedQuotaGroups(rawGroups);
+          const displayGroups = (account.provider ?? "").toLowerCase().includes("codex")
+            ? deduplicatedGroups.map((group) => ({
+                ...group,
+                label: friendlyGroupName(group, undefined, account.provider),
+              }))
+            : deduplicatedGroups;
 
           return {
             id: account.authIndex ?? `${account.provider ?? "provider"}-${index}`,
@@ -101,8 +107,8 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
             ...(account.status ? { status: account.status } : {}),
             ...(account.disabled !== undefined ? { disabled: account.disabled } : {}),
             ...(account.unavailable !== undefined ? { unavailable: account.unavailable } : {}),
-            metrics: metrics(deduplicatedGroups),
-            rawGroups: deduplicatedGroups,
+            metrics: metrics(displayGroups),
+            rawGroups: displayGroups,
             ...(account.error ? { error: account.error } : {}),
           };
         })

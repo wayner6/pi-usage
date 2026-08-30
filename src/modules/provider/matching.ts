@@ -50,16 +50,24 @@ export function friendlyGroupName(
 
   const isGemini = mTokens.includes("gemini") || gTokens.includes("gemini") || prov.includes("google") || prov.includes("gemini");
   const isClaude = mTokens.includes("claude") || gTokens.includes("claude") || prov.includes("anthropic");
-  const isCodex = mTokens.includes("codex") || gTokens.includes("codex") || prov.includes("codex") || gTokens.includes("5h") || gTokens.includes("7d");
+  const isCodex = mTokens.includes("codex") || gTokens.includes("codex") || prov.includes("codex");
   const isGpt = mTokens.includes("gpt") || mTokens.includes("openai") || prov.includes("openai");
 
   if (isGemini) {
-    if (gTokens.includes("flash") || mTokens.includes("flash")) return "Gemini Flash";
-    if (gTokens.includes("pro") || mTokens.includes("pro")) return "Gemini Pro";
+    // The active model is authoritative when a shared pool contains multiple tiers.
+    if (mTokens.includes("flash")) return "Gemini Flash";
+    if (mTokens.includes("pro")) return "Gemini Pro";
+    if (gTokens.includes("flash")) return "Gemini Flash";
+    if (gTokens.includes("pro")) return "Gemini Pro";
     return "Gemini";
   }
 
   if (isClaude) {
+    // Deduplicated shared pools may contain Opus and Sonnet together. Prefer
+    // the selected model's family before deriving a name from the pool label.
+    if (mTokens.includes("opus")) return "Claude Opus";
+    if (mTokens.includes("sonnet")) return "Claude Sonnet";
+    if (mTokens.includes("haiku")) return "Claude Haiku";
     if (gTokens.includes("opus") || (gTokens.includes("thinking") && !gTokens.includes("flash"))) return "Claude Opus";
     if (gTokens.includes("sonnet") || gTokens.includes("other")) return "Claude Sonnet";
     if (gTokens.includes("haiku")) return "Claude Haiku";
@@ -95,9 +103,20 @@ export type RawBridgeAccount = {
   rawGroups?: unknown;
 };
 
+function isTemporalWindow(group: RawBridgeGroup): boolean {
+  const tokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
+  return tokens.some((token) => ["5h", "7d", "1w", "weekly", "week", "primary", "secondary"].includes(token));
+}
+
+function isCodexTarget(modelId: string, providerId?: string): boolean {
+  const tokens = tokenizeModelId(`${modelId} ${providerId ?? ""}`);
+  return tokens.some((token) => ["codex", "gpt", "openai"].includes(token));
+}
+
 export function matchModelAcrossAccounts(
   accounts: RawBridgeAccount[],
   activeModelId?: string,
+  activeProviderId?: string,
 ): { account: RawBridgeAccount; quota: MatchedGroupQuota } | undefined {
   if (!accounts.length) return undefined;
   const targetId = (activeModelId ?? "").trim().toLowerCase();
@@ -153,7 +172,7 @@ export function matchModelAcrossAccounts(
       }
 
       const gTokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
-      const isTimeWindow = gTokens.includes("5h") || gTokens.includes("primary") || gTokens.includes("7d") || gTokens.includes("secondary");
+      const isTimeWindow = isTemporalWindow(group);
 
       if (bestScore < 60) {
         const groupOverlap = gTokens.filter((t) => targetTokens.includes(t));
@@ -166,6 +185,18 @@ export function matchModelAcrossAccounts(
             bestScore = score;
           }
         }
+      }
+
+      // Codex bridge accounts expose account-wide 5h/7d windows whose model
+      // entries are named "primary-window"/"secondary-window". Match these by
+      // account family because they cannot match a concrete model ID directly.
+      if (
+        bestScore === 0 &&
+        isTimeWindow &&
+        (account.provider ?? "").toLowerCase().includes("codex") &&
+        isCodexTarget(targetId, activeProviderId)
+      ) {
+        bestScore = 65;
       }
 
       if (bestScore > 0) {
@@ -188,11 +219,9 @@ export function matchModelAcrossAccounts(
 
     // Check if this matched account specifically has multiple time-window quotas (like 5h and 7d for Codex)
     const groups = Array.isArray(matchedAccount.rawGroups) ? (matchedAccount.rawGroups as RawBridgeGroup[]) : [];
-    const timeWindowGroups = groups.filter((g) => {
-      if (typeof g.remainingFraction !== "number") return false;
-      const gTokens = tokenizeModelId(`${g.id ?? ""} ${g.label ?? ""}`);
-      return gTokens.includes("5h") || gTokens.includes("primary") || gTokens.includes("7d") || gTokens.includes("secondary");
-    });
+    const timeWindowGroups = groups.filter((g) =>
+      typeof g.remainingFraction === "number" && isTemporalWindow(g)
+    );
 
     let multiWindows: MatchedQuotaItem[] | undefined;
     if (winner.isTimeWindow && timeWindowGroups.length > 1) {
@@ -255,6 +284,11 @@ export function isAccountRelevantToModels(
   // Check token intersection with account provider
   if (provTokens.some((t) => targetTokens.has(t))) return true;
 
+  // Codex proxy accounts use generic window names rather than model IDs.
+  if (provNormalized.includes("codex") && [...targetTokens].some((t) => ["codex", "gpt", "openai"].includes(t))) {
+    return true;
+  }
+
   // 2. Check groups and their inner models
   const modelKeywords = [
     "claude", "gemini", "codex", "gpt", "openai", "deepseek", "kimi", "moonshot", "grok", "xai",
@@ -301,6 +335,13 @@ export function isGroupRelevantToModels(
   if (!configuredModelIds || configuredModelIds.length === 0) return true;
 
   const targetTokens = new Set(configuredModelIds.flatMap(tokenizeModelId));
+
+  // Preserve model-independent Codex rolling/weekly windows. Account-level
+  // filtering later decides whether a Codex account is actually relevant.
+  if (isTemporalWindow(group) && [...targetTokens].some((t) => ["codex", "gpt", "openai"].includes(t))) {
+    return true;
+  }
+
   const modelKeywords = [
     "claude", "gemini", "codex", "gpt", "openai", "deepseek", "kimi", "moonshot", "grok", "xai",
     "thinking", "flash", "pro", "opus", "sonnet", "haiku", "turbo", "mini", "reasoning",
@@ -423,7 +464,9 @@ export function deduplicateSharedQuotaGroups(groups: RawBridgeGroup[]): RawBridg
         typeof current.remainingFraction === "number" &&
         typeof other.remainingFraction === "number" &&
         Math.abs(current.remainingFraction - other.remainingFraction) < 0.0001 &&
-        current.resetTime === other.resetTime
+        Boolean(current.resetTime) &&
+        current.resetTime === other.resetTime &&
+        !(isTemporalWindow(current) && isTemporalWindow(other) && current.id !== other.id)
       ) {
         matchingIndices.push(j);
       }
@@ -461,8 +504,7 @@ export function deduplicateSharedQuotaGroups(groups: RawBridgeGroup[]): RawBridg
 const MODEL_FAMILIES: string[][] = [
   ["claude", "anthropic"],
   ["gemini", "google"],
-  ["codex"],
-  ["gpt", "openai"],
+  ["codex", "gpt", "openai"],
   ["kimi", "moonshot"],
   ["deepseek"],
   ["grok", "xai"],
