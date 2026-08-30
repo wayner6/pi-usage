@@ -457,3 +457,55 @@ export function deduplicateSharedQuotaGroups(groups: RawBridgeGroup[]): RawBridg
 }
 
 
+
+const MODEL_FAMILIES: string[][] = [
+  ["claude", "anthropic"],
+  ["gemini", "google"],
+  ["codex"],
+  ["gpt", "openai"],
+  ["kimi", "moonshot"],
+  ["deepseek"],
+  ["grok", "xai"],
+  ["glm", "zhipu"],
+  ["minimax"],
+  ["qwen", "alibaba"],
+];
+
+/**
+ * Checks whether an upstream proxy account is compatible with a given active model.
+ * Prevents models of one family (e.g. Kimi) from blindly matching or falling back
+ * to accounts of an entirely different family (e.g. Claude/Gemini in Antigravity).
+ */
+export function isAccountCompatibleWithModel(
+  account: { provider?: string; label?: string; rawGroups?: unknown },
+  modelId: string,
+): boolean {
+  const mTokens = tokenizeModelId(modelId);
+  const provNormalized = (account.provider ?? "").toLowerCase();
+  const provTokens = tokenizeModelId(provNormalized);
+
+  // 1. Direct name match
+  if (provNormalized && (modelId.toLowerCase().includes(provNormalized) || provTokens.some((t) => mTokens.includes(t)))) {
+    return true;
+  }
+
+  // 2. Specific proxy provider abbreviations (e.g. "ag-" prefix with "antigravity")
+  if (provNormalized === "antigravity" && modelId.toLowerCase().startsWith("ag-")) {
+    return true;
+  }
+
+  // 3. Known model family matching
+  const modelFamilies = MODEL_FAMILIES.filter((fam) => fam.some((k) => mTokens.includes(k)));
+  if (modelFamilies.length > 0) {
+    const rawGroups = Array.isArray(account.rawGroups) ? (account.rawGroups as RawBridgeGroup[]) : [];
+    const groupText = rawGroups
+      .map((g) => `${g.id ?? ""} ${g.label ?? ""} ${(g.models ?? []).map((m) => `${m.id ?? ""} ${m.displayName ?? ""}`).join(" ")}`)
+      .join(" ");
+    const accountText = `${account.provider ?? ""} ${account.label ?? ""} ${groupText}`.toLowerCase();
+    const accountTokens = tokenizeModelId(accountText);
+
+    return modelFamilies.some((fam) => fam.some((k) => accountTokens.includes(k)));
+  }
+
+  return true;
+}

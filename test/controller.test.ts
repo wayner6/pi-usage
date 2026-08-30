@@ -1,3 +1,4 @@
+import type { UsageSnapshot } from "../src/core/types.ts";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -94,4 +95,49 @@ test("controller.refreshAll correctly isolates model baseUrl and filters proxy a
   assert.equal(codexSnapshot.state, "ok");
   assert.equal(codexSnapshot.accounts.length, 1);
   assert.equal(codexSnapshot.accounts[0]?.metrics.length, 2);
+});
+
+test("controller.currentView does not mismatch foreign quotas to unsupported or different-family models", async () => {
+  const controller = new ProviderUsageController(DEFAULT_CONFIG);
+  const snapshot: UsageSnapshot = {
+    adapterId: "cliproxy-pi-bridge",
+    sourceProviderId: "MyCPA",
+    displayName: "MyCPA",
+    state: "ok",
+    fetchedAt: new Date().toISOString(),
+    diagnostic: "Unsupported upstream providers: kimi",
+    accounts: [
+      {
+        id: "antigravity-0",
+        provider: "antigravity",
+        label: "w***@gmail.com",
+        metrics: [
+          { kind: "quota-window", id: "pro-models", label: "Gemini Pro", remainingFraction: 0.99 },
+          { kind: "quota-window", id: "thinking-models", label: "Claude / GPT", remainingFraction: 0.20, resetAt: "2026-08-31T15:58:32Z" }
+        ],
+        rawGroups: [
+          { id: "pro-models", label: "Pro Models", remainingFraction: 0.99, models: [{ id: "gemini-2.5-pro" }] },
+          { id: "thinking-models", label: "Thinking Models", remainingFraction: 0.20, models: [{ id: "claude-opus-4-6-thinking" }] }
+        ]
+      }
+    ]
+  };
+
+  // 1. Kimi model when upstream proxy marks kimi as unsupported
+  const kimiView = controller.currentView({} as any, snapshot, { id: "kimi-k3", provider: "MyCPA" } as any);
+  assert.ok(kimiView);
+  assert.equal(kimiView.state, "unsupported");
+  assert.equal(kimiView.summary, "Kimi · Unsupported by proxy");
+
+  // 2. Claude model correctly matches Claude quota
+  const claudeView = controller.currentView({} as any, snapshot, { id: "ag-claude-opus-4-6-thinking", provider: "MyCPA" } as any);
+  assert.ok(claudeView);
+  assert.equal(claudeView.state, "ok");
+  assert.ok(claudeView.summary?.includes("Claude"));
+
+  // 3. Gemini model correctly matches Gemini quota
+  const geminiView = controller.currentView({} as any, snapshot, { id: "gemini-2.5-pro", provider: "MyCPA" } as any);
+  assert.ok(geminiView);
+  assert.equal(geminiView.state, "ok");
+  assert.ok(geminiView.summary?.includes("Gemini"));
 });

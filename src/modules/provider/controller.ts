@@ -11,7 +11,7 @@ import { openAICodexAdapter } from "./adapters/openai-codex.ts";
 import { openCodeGoAdapter } from "./adapters/opencode-go.ts";
 import { openRouterAdapter } from "./adapters/openrouter.ts";
 import { xaiAdapter } from "./adapters/xai.ts";
-import { chooseAdapter, matchModelAcrossAccounts } from "./matching.ts";
+import { chooseAdapter, matchModelAcrossAccounts, isAccountCompatibleWithModel, tokenizeModelId } from "./matching.ts";
 import { relativeTime } from "../../ui/format.ts";
 
 export class ProviderUsageController {
@@ -140,7 +140,7 @@ export class ProviderUsageController {
       if (matched.quota.multiWindows && matched.quota.multiWindows.length > 1) {
         // Special case: Multiple time windows for the same model (e.g. Codex 5h and 7d)
         const parts = matched.quota.multiWindows.map((q) => {
-          const sub = q.label.replace(/^Codex\s+/, "");
+          const sub = q.label.replace(/^Codexs+/, "");
           const reset = q.resetAt ? relativeTime(q.resetAt) : undefined;
           return `${sub} ${Math.round(q.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}`;
         });
@@ -158,27 +158,63 @@ export class ProviderUsageController {
       };
     }
 
-    // Fallback: If snapshot has accounts with metrics, check if it's an openai-codex or time-window multi metric
-    const activeAccounts = snapshot.accounts.filter((a) => !a.disabled && !a.unavailable);
-    const firstAccount = activeAccounts[0];
-    if (firstAccount && firstAccount.metrics.length > 1) {
-      const windowMetrics = firstAccount.metrics.filter((m): m is Extract<Metric, { kind: "quota-window" }> => m.kind === "quota-window");
-      const allCodex = windowMetrics.length > 1 && windowMetrics.every((m) => m.label.startsWith("Codex"));
-      if (allCodex) {
-        const parts = windowMetrics.map((m) => {
-          const sub = m.label.replace(/^Codex\s+/, "");
-          const reset = m.resetAt ? relativeTime(m.resetAt) : undefined;
-          return `${sub} ${Math.round(m.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}`;
-        });
+    // If a specific model is requested but no group matched:
+    if (model?.id) {
+      const mTokens = tokenizeModelId(model.id);
+
+      // Check if upstream diagnostic reports this model provider as unsupported
+      if (snapshot.diagnostic && snapshot.diagnostic.includes("Unsupported upstream providers:")) {
+        const list = snapshot.diagnostic.split(":")[1]?.toLowerCase() ?? "";
+        if (mTokens.some((t) => list.includes(t))) {
+          const provName = mTokens.find((t) => list.includes(t)) ?? model.id;
+          const capitalized = provName.charAt(0).toUpperCase() + provName.slice(1);
+          return {
+            ...snapshot,
+            state: "unsupported",
+            summary: `${capitalized} · Unsupported by proxy`,
+          };
+        }
+      }
+
+      // Check if there are accounts compatible with this model
+      const compatibleAccounts = snapshot.accounts.filter(
+        (a) => !a.disabled && !a.unavailable && isAccountCompatibleWithModel(a, model.id)
+      );
+
+      if (compatibleAccounts.length > 0) {
+        const first = compatibleAccounts[0]!;
+        if (first.metrics.length > 0) {
+          const worst = first.metrics
+            .filter((m): m is Extract<Metric, { kind: "quota-window" }> => m.kind === "quota-window")
+            .sort((a, b) => a.remainingFraction - b.remainingFraction)[0];
+          if (worst) {
+            const reset = worst.resetAt ? relativeTime(worst.resetAt) : undefined;
+            return {
+              ...snapshot,
+              accounts: [first],
+              summary: `${worst.label} ${Math.round(worst.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}`,
+            };
+          }
+        }
         return {
           ...snapshot,
-          state: snapshot.state,
-          summary: `Codex ${parts.join(" · ")}`,
+          accounts: [first],
+          state: "empty",
+          summary: `${first.label || first.provider} · No Quota Reported`,
         };
       }
+
+      // Model belongs to a family not present or not compatible with any account in this proxy
+      return {
+        ...snapshot,
+        accounts: [],
+        state: "empty",
+        summary: `No Quota · ${model.id}`,
+      };
     }
 
-    // Standard fallback: pick the lowest metric from all active accounts
+    // Standard fallback when no model is specified at all:
+    const activeAccounts = snapshot.accounts.filter((a) => !a.disabled && !a.unavailable);
     const worst = activeAccounts
       .flatMap((a) => a.metrics)
       .filter((m): m is Extract<Metric, { kind: "quota-window" }> => m.kind === "quota-window")
