@@ -21,6 +21,7 @@ Pi Usage 是一个适用于 [Pi](https://github.com/earendil-works/pi-mono) 和 
 | GLM / 智谱 BigModel | API Key | Coding Plan 额度窗口；普通按量付费 Key 无法通过官方 API 查询 |
 | OpenRouter | OAuth 或 API Key | 账户可用余额（或 Key 剩余限额）与累计消耗 |
 | OpenCode Go | API Key | 5 小时、周、月滚动额度窗口 |
+| Kimi Code / 月之暗面 | Kimi OAuth 或 API Key | 5 小时滑动限制、周度额度与重置倒计时 |
 | CLIProxyAPI | `pi-bridge` 插件 | 上游额度窗口与重置时间（需在代理服务端安装 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 插件） |
 
 Pi Usage 直接复用 Pi 中已有的服务商认证（OAuth 令牌或 API Key）。CLIProxyAPI 通过服务端 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) 插件查询（需要 CLIProxyAPI 服务端已部署该插件），本插件绝不会读取、传输或存储其 Management Key。

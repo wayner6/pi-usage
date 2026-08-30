@@ -11,6 +11,7 @@ import { openAICodexAdapter } from "./adapters/openai-codex.ts";
 import { openCodeGoAdapter } from "./adapters/opencode-go.ts";
 import { openRouterAdapter } from "./adapters/openrouter.ts";
 import { xaiAdapter } from "./adapters/xai.ts";
+import { kimiCodingAdapter } from "./adapters/kimi-coding.ts";
 import { chooseAdapter, matchModelAcrossAccounts, isAccountCompatibleWithModel, tokenizeModelId } from "./matching.ts";
 import { relativeTime } from "../../ui/format.ts";
 
@@ -19,7 +20,7 @@ export class ProviderUsageController {
   private adapters: UsageAdapter[];
 
   constructor(private config: UsageConfig, private fetchFn: typeof fetch = fetch) {
-    this.adapters = [deepSeekAdapter, openAICodexAdapter, xaiAdapter, anthropicAdapter, glmAdapter, openRouterAdapter, openCodeGoAdapter, cliProxyBridgeAdapter];
+    this.adapters = [deepSeekAdapter, openAICodexAdapter, xaiAdapter, anthropicAdapter, glmAdapter, openRouterAdapter, openCodeGoAdapter, kimiCodingAdapter, cliProxyBridgeAdapter];
   }
 
   setConfig(config: UsageConfig): void { this.config = config; }

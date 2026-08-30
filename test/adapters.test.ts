@@ -9,6 +9,7 @@ import { anthropicAdapter } from "../src/modules/provider/adapters/anthropic.ts"
 import { glmAdapter } from "../src/modules/provider/adapters/glm.ts";
 import { openRouterAdapter } from "../src/modules/provider/adapters/openrouter.ts";
 import { openCodeGoAdapter } from "../src/modules/provider/adapters/opencode-go.ts";
+import { kimiCodingAdapter } from "../src/modules/provider/adapters/kimi-coding.ts";
 import { matchModelAcrossAccounts, matchModelGroup, isAccountRelevantToModels } from "../src/modules/provider/matching.ts";
 import { DEFAULT_CONFIG } from "../src/core/config.ts";
 
@@ -354,4 +355,73 @@ test("cliproxy bridge adapter rejects native providers like deepseek even if bas
   assert.equal(cliProxyBridgeAdapter.canHandle({ providerId: "anthropic" }), false);
   assert.equal(cliProxyBridgeAdapter.canHandle({ providerId: "xai" }), false);
   assert.equal(cliProxyBridgeAdapter.canHandle({ providerId: "glm" }), false);
+});
+
+test("kimi-coding adapter parses 5h and weekly quotas correctly", async () => {
+  const mockResponse = {
+    usage: {
+      limit: "2048",
+      used: "204",
+      remaining: "1844",
+      resetTime: "2026-09-05T12:00:00Z"
+    },
+    limits: [
+      {
+        window: { duration: 300, timeUnit: "TIME_UNIT_MINUTE" },
+        detail: {
+          limit: "200",
+          used: "20",
+          remaining: "180",
+          resetTime: "2026-08-30T15:00:00Z"
+        }
+      }
+    ]
+  };
+
+  const snapshot = await kimiCodingAdapter.fetch({
+    target: {
+      providerId: "kimi-coding",
+      baseUrl: "https://api.kimi.com/coding",
+      auth: { auth: { apiKey: "mock-token" }, source: "oauth" },
+    },
+    signal: new AbortController().signal,
+    force: false,
+    fetchFn: async () => new Response(JSON.stringify(mockResponse), { status: 200, headers: { "content-type": "application/json" } }),
+  });
+
+  assert.equal(snapshot.state, "ok");
+  assert.equal(snapshot.summary, "Kimi 5h 90% · Weekly 90%");
+  assert.equal(snapshot.accounts.length, 1);
+  assert.equal(snapshot.accounts[0]?.metrics.length, 2);
+});
+
+test("kimi-coding adapter handles 429 quota exhausted gracefully", async () => {
+  const errorResponse = {
+    code: "resource_exhausted",
+    message: "insufficient balance",
+    details: [
+      {
+        debug: {
+          localizedMessage: {
+            message: "Credits used up."
+          }
+        }
+      }
+    ]
+  };
+
+  const snapshot = await kimiCodingAdapter.fetch({
+    target: {
+      providerId: "kimi-coding",
+      baseUrl: "https://api.kimi.com/coding",
+      auth: { auth: { apiKey: "mock-token" }, source: "oauth" },
+    },
+    signal: new AbortController().signal,
+    force: false,
+    fetchFn: async () => new Response(JSON.stringify(errorResponse), { status: 429, headers: { "content-type": "application/json" } }),
+  });
+
+  assert.equal(snapshot.state, "ok");
+  assert.equal(snapshot.summary, "Kimi · 0% (Credits used up.)");
+  assert.equal((snapshot.accounts[0]?.metrics[0] as any)?.remainingFraction, 0);
 });
