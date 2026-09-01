@@ -10,12 +10,15 @@ import { glmAdapter } from "../src/modules/provider/adapters/glm.ts";
 import { openRouterAdapter } from "../src/modules/provider/adapters/openrouter.ts";
 import { openCodeGoAdapter } from "../src/modules/provider/adapters/opencode-go.ts";
 import { kimiCodingAdapter } from "../src/modules/provider/adapters/kimi-coding.ts";
-import { deduplicateSharedQuotaGroups, matchModelAcrossAccounts, matchModelGroup, isAccountRelevantToModels } from "../src/modules/provider/matching.ts";
-import { DEFAULT_CONFIG } from "../src/core/config.ts";
+import { deduplicateSharedQuotaGroups, matchModelAcrossAccounts, isAccountCompatibleWithModel, isAccountRelevantToModels } from "../src/modules/provider/matching.ts";
 
 const fixture = async (name: string) => readFile(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
 function auth(apiKey = "sk-test") { return { auth: { apiKey }, source: "test" }; }
+
+test("DeepSeek rejects malformed provider URLs without throwing during adapter selection", () => {
+  assert.equal(deepSeekAdapter.canHandle({ providerId: "deepseek", baseUrl: "://bad-url" }), false);
+});
 
 test("DeepSeek parses official balances", async () => {
   const body = await fixture("deepseek-balance.json");
@@ -107,10 +110,12 @@ test("openai-codex adapter parses official wham usage response", async () => {
   assert.equal(snapshot.accounts.length, 1);
   const metrics = snapshot.accounts[0]?.metrics ?? [];
   assert.equal(metrics.length, 2);
+  assert.equal(metrics[0]?.kind, "quota-window");
   assert.equal(metrics[0]?.label, "Codex 5h");
-  assert.equal(Math.round((metrics[0] as any).remainingFraction * 100), 99);
+  if (metrics[0]?.kind === "quota-window") assert.equal(Math.round(metrics[0].remainingFraction * 100), 99);
+  assert.equal(metrics[1]?.kind, "quota-window");
   assert.equal(metrics[1]?.label, "Codex 7d");
-  assert.equal(Math.round((metrics[1] as any).remainingFraction * 100), 78);
+  if (metrics[1]?.kind === "quota-window") assert.equal(Math.round(metrics[1].remainingFraction * 100), 78);
   assert.match(snapshot.summary ?? "", /^Codex · 5h 99% \(.+\) · 7d 78% \(.+\)$/);
 });
 
@@ -134,6 +139,19 @@ test("xai adapter verifies userinfo and parses active status", async () => {
   assert.equal(snapshot.state, "ok");
   assert.equal(snapshot.summary, "Grok · Active");
   assert.equal(snapshot.accounts[0]?.label, "alex@example.com");
+});
+
+test("xai adapter does not report Active when userinfo fails", async () => {
+  await assert.rejects(() => xaiAdapter.fetch({
+    target: {
+      providerId: "xai",
+      baseUrl: "https://api.x.ai/v1",
+      auth: { auth: { apiKey: "mock-xai-token" }, source: "oauth" },
+    },
+    signal: new AbortController().signal,
+    force: false,
+    fetchFn: async () => new Response("upstream failure", { status: 500 }),
+  }), /userinfo returned HTTP 500/);
 });
 
 test("anthropic OAuth adapter parses subscription 5h and 7d windows", async () => {
@@ -194,6 +212,15 @@ test("glm adapter parses coding plan multi-window quota correctly", async () => 
   assert.equal(planSnapshot.state, "ok");
   assert.match(planSnapshot.summary ?? "", /^GLM · 5h 75% \(.+\) · 7d 50% \(.+\)$/);
   assert.equal(planSnapshot.accounts[0]?.label, "GLM PRO");
+});
+
+test("model matching does not select arbitrary groups without a model or for an unknown family", () => {
+  const account = {
+    provider: "antigravity",
+    rawGroups: [{ remainingFraction: 0.5, models: [{ id: "claude-sonnet-4-6" }] }],
+  };
+  assert.equal(matchModelAcrossAccounts([account], undefined), undefined);
+  assert.equal(isAccountCompatibleWithModel(account, "unrelated-model-1"), false);
 });
 
 test("universal matching works with arbitrary user prefixes and arbitrary provider names", () => {
@@ -369,8 +396,9 @@ test("openrouter adapter parses credits", async () => {
   assert.equal(snapshot.state, "ok");
   assert.equal(snapshot.displayName, "OpenRouter");
   assert.equal(snapshot.accounts[0]?.metrics[0]?.kind, "balance");
-  const bal = snapshot.accounts[0]?.metrics[0] as any;
-  assert.equal(bal.amount.toFixed(2), "37.66");
+  const balance = snapshot.accounts[0]?.metrics[0];
+  assert.equal(balance?.kind, "balance");
+  if (balance?.kind === "balance") assert.equal(balance.amount.toFixed(2), "37.66");
   assert.equal(snapshot.summary, "Balance $37.66");
 });
 
@@ -385,7 +413,7 @@ test("opencode-go adapter parses usage windows", async () => {
   assert.equal(snapshot.state, "ok");
   assert.equal(snapshot.accounts.length, 1);
   assert.equal(snapshot.accounts[0]?.metrics.length, 3);
-  const labels = snapshot.accounts[0]?.metrics.map((m:any)=>m.label);
+  const labels = snapshot.accounts[0]?.metrics.map((metric) => metric.label);
   assert.ok(labels.includes("OpenCode 5h"));
   assert.ok(labels.includes("OpenCode Weekly"));
 });
@@ -395,6 +423,8 @@ test("new adapters canHandle correctly", () => {
   assert.equal(openCodeGoAdapter.canHandle({ providerId: "opencode-go" }), true);
   assert.equal(openCodeGoAdapter.canHandle({ providerId: "openrouter", baseUrl: "https://api.siliconflow.cn/v1" }), false);
   assert.equal(openRouterAdapter.canHandle({ providerId: "custom", baseUrl: "https://openrouter.ai/api/v1" }), true);
+  assert.equal(openRouterAdapter.canHandle({ providerId: "openrouter", baseUrl: "https://evilopenrouter.ai/v1" }), false);
+  assert.equal(openCodeGoAdapter.canHandle({ providerId: "opencode-go", baseUrl: "https://opencode.ai.evil.example/v1" }), false);
 });
 test("cliproxy bridge adapter rejects native providers like deepseek even if baseUrl is present", () => {
   assert.equal(cliProxyBridgeAdapter.canHandle({ providerId: "deepseek", baseUrl: "https://api.deepseek.com" }), false);
@@ -429,11 +459,14 @@ test("kimi-coding adapter parses 5h and weekly quotas correctly", async () => {
     target: {
       providerId: "kimi-coding",
       baseUrl: "https://api.kimi.com/coding",
-      auth: { auth: { headers: { Authorization: "Bearer mock-token" } }, source: "OAuth" },
+      auth: { auth: { headers: { Authorization: "Bearer mock-token", "X-Kimi-Client": "pi" } }, source: "OAuth" },
     },
     signal: new AbortController().signal,
     force: false,
-    fetchFn: async () => new Response(JSON.stringify(mockResponse), { status: 200, headers: { "content-type": "application/json" } }),
+    fetchFn: async (_url, init) => {
+      assert.equal(new Headers(init?.headers).get("X-Kimi-Client"), "pi");
+      return new Response(JSON.stringify(mockResponse), { status: 200, headers: { "content-type": "application/json" } });
+    },
   });
 
   assert.equal(snapshot.state, "ok");

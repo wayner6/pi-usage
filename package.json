@@ -1,10 +1,10 @@
 {
   "name": "@wayner6/pi-usage",
-  "version": "0.1.10",
+  "version": "0.2.0",
   "publishConfig": {
     "access": "public"
   },
-  "description": "Provider balance and quota monitoring for Pi and pi-web",
+  "description": "Provider quota monitoring and local skill activation statistics for Pi and pi-web",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -12,6 +12,7 @@
     "pi",
     "usage",
     "quota",
+    "skills",
     "deepseek",
     "cliproxyapi"
   ],

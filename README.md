@@ -1,131 +1,202 @@
+<div align="center">
+
 # Pi Usage
 
-[中文文档](./README_zh.md)
+Provider balances, quota windows, reset times, and local Skill usage counts for [Pi](https://github.com/earendil-works/pi-mono) and [pi-web](https://github.com/agegr/pi-web).
 
-Pi Usage is a [Pi](https://github.com/earendil-works/pi-mono) and [pi-web](https://github.com/agegr/pi-web) plugin that shows the balance or quota of the provider behind the active model.
+[中文文档](./README_zh.md) · [Report a bug](https://github.com/wayner6/pi-usage/issues)
 
-## What it shows
+</div>
 
-- A compact status line for the active model, such as `Codex · 5h 92% (resets in 2h) · 7d 85% (resets in 5d 3h)`.
-- Remaining balance, quota/rate-limit windows, and reset times when the provider exposes them.
-- Details for configured providers through `/usage`, including unavailable or unsupported states.
+## At a glance
 
-The display follows the active model. Quota windows include reset countdowns when the provider supplies reset timestamps. Request failures are never converted into zero balance.
+Pi Usage adds a compact status item for the active model:
 
-## Provider support
+```text
+Codex · 5h 92% (resets in 2h) · 7d 85% (resets in 5d 3h)
+```
 
-| Provider | Support level | Authentication | What is displayed |
-| --- | --- | --- | --- |
-| OpenAI Codex | Quota | ChatGPT Plus/Pro OAuth | 5-hour and 7-day remaining quota with reset countdowns |
-| Anthropic Claude | Quota / limited | Claude OAuth or API key | OAuth: 5-hour and 7-day subscription quota; API key: request/token rate-limit headroom only |
-| DeepSeek | Balance | API key | Official account balances by currency |
-| GLM / Zhipu BigModel | Quota / limited | API key | Coding Plan: 5-hour and 7-day quota; standard pay-as-you-go keys: no official balance/quota query |
-| OpenRouter | Balance | OAuth-resolved key or API key | Account balance, or key remaining limit, plus total usage |
-| OpenCode Go | Quota | API key | Rolling 5-hour, weekly, and monthly windows; the footer shows 5-hour and weekly, `/usage` shows all windows |
-| Kimi Code | Quota / status | Kimi OAuth or Kimi Code API key | Active plan: 5-hour and weekly quota; no active plan or exhausted credits: `No active quota` |
-| CLIProxyAPI | Upstream-dependent | Proxy API key plus server-side `pi-bridge` | Only the accounts and quota pools actually returned by `pi-bridge` |
-| xAI / Grok | Status only | OAuth | Account identity and active/spending-limit status; no numerical subscription quota |
-| Google Vertex AI | Unsupported | API key, ADC, or service account | Explicit `Unsupported`; no single subscription-style quota exists |
-| Google Gemini API / AI Studio | Unsupported | API key | No supported official account quota/balance endpoint |
+It also provides one command for detailed provider data and Skill statistics:
 
-### Display and matching rules
+```text
+/usage
+/usage skills
+```
 
-- Native providers display every relevant short-term and weekly window returned by their official usage endpoint, including reset countdowns when available.
-- The footer follows the active model. `/usage` shows the full metrics retained for each configured source.
-- CLIProxyAPI data is never inferred. A CPA Claude or Gemini model shows 5-hour and weekly values only if `pi-bridge` returns distinct 5-hour and weekly pools. If Antigravity returns one shared model pool, Pi Usage displays that one pool and its reset time.
-- Proxy accounts and groups are matched by model family and model ID. A model cannot borrow a foreign provider's quota.
-- Missing authentication, no active plan, unsupported provider, upstream failure, and a genuine zero balance are separate states. Failures are not converted to `0%`.
+The status follows the active model. If a provider does not expose a balance or quota endpoint, Pi Usage says so instead of inventing a number. Network errors, missing authentication, unsupported providers, exhausted plans, and a real zero balance remain separate states.
 
-Pi Usage uses Pi's resolved provider authentication. CLIProxyAPI is queried through the server-side [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge), which must be installed on the CLIProxyAPI server. Pi Usage never requests, reads, or stores the CLIProxyAPI Management Key.
+## Screenshots
 
-Google Vertex quotas are project-, region-, model-, and metric-specific Cloud Quotas/Cloud Monitoring data requiring additional project IAM permissions. They cannot be represented honestly as one footer percentage. Kimi OAuth proves account authentication but does not prove an active paid plan, so an account without usable Kimi Code credits is shown as `No active quota`, not `Unauthorized`.
+### Provider details with `/usage`
+
+<table>
+  <tr>
+    <th>Pi terminal</th>
+    <th>pi-web</th>
+  </tr>
+  <tr>
+    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png" alt="Pi terminal showing the /usage command" width="100%"></a></td>
+    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png" alt="pi-web showing the /usage command" width="100%"></a></td>
+  </tr>
+</table>
+
+### Active model quota in the footer
+
+<table>
+  <tr>
+    <th>Pi terminal</th>
+    <th>pi-web</th>
+  </tr>
+  <tr>
+    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png" alt="Pi terminal showing the active model quota in the footer" width="100%"></a></td>
+    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png" alt="pi-web showing the active model quota in the footer" width="100%"></a></td>
+  </tr>
+</table>
+
+Click an image to open the full-size version.
 
 ## Install
 
-Choose one installation source.
+Choose npm or GitHub as the installation source.
 
-### npm
-
-In Pi's terminal:
+### Pi terminal
 
 ```bash
+# npm
 pi install npm:@wayner6/pi-usage
+
+# GitHub
+pi install github:wayner6/pi-usage
 ```
 
-In pi-web: open **Settings** → **Plugins** → **Add Plugin**, enter the following in **Source**, choose `global`, then select **Install**:
+### pi-web
+
+Open **Settings > Plugins > Add Plugin**, choose the `global` scope, and enter one of these sources:
 
 ```text
 npm:@wayner6/pi-usage
 ```
 
-### GitHub
-
-In Pi's terminal:
-
-```bash
-pi install github:wayner6/pi-usage
-```
-
-In pi-web: open **Settings** → **Plugins** → **Add Plugin**, enter the following in **Source**, choose `global`, then select **Install**:
-
 ```text
 git:https://github.com/wayner6/pi-usage
 ```
 
-After installing or updating the plugin, reload the session if it is already open.
+Reload the current session after installing or updating the plugin.
 
-## Update
+## Commands
 
-In Pi's terminal, update this plugin only:
+Pi Usage registers only the `/usage` command.
 
-```bash
-pi update npm:@wayner6/pi-usage
-```
-
-To update all installed plugins without updating Pi itself:
-
-```bash
-pi update --extensions
-```
-
-In pi-web: open **Settings** → **Plugins**, select `npm:@wayner6/pi-usage`, choose **Update**, then use **Reload Session**.
-
-## Use
-
-Send a normal message to refresh the quota for the active model. The status line then updates automatically.
-
-In pi-web, an idle model switch is applied when the next message is sent. To refresh it immediately, use **Reload Session**.
-
-Use these commands in the chat input:
-
-| Command | Result |
+| Command | What it does |
 | --- | --- |
-| `/usage` or `/quota` | Show configured provider balances, quotas, and status/error details |
-| `/usage current` | Show the active model's provider only |
-| `/usage refresh` | Refresh the active provider now |
-| `/usage doctor` | Show authentication, adapter, and bridge diagnostics |
-| `/usage settings` | Show current plugin settings |
+| `/usage` | Shows all configured providers and their balances, quotas, or current state |
+| `/usage all` | Same as `/usage` |
+| `/usage current` | Shows data for the active model's provider |
+| `/usage refresh` | Bypasses the cache and refreshes the active provider |
+| `/usage doctor` | Shows the active model, adapter, authentication state, and bridge diagnostics |
+| `/usage skills` | Lists every installed Skill and its accumulated use count, including zero |
+| `/usage settings` | Shows the current plugin settings and configuration path |
+
+### Skill counting
+
+Pi does not emit a dedicated `skill_invoked` event. Pi Usage detects a Skill activation when either of these happens:
+
+1. You run `/skill:name`.
+2. The model successfully reads the entry file of a Skill discovered by Pi.
+
+The same Skill is counted once per agent run, so a `/skill:name` command followed by a read of its `SKILL.md` adds one use, not two. Counts begin after Skill tracking is installed and enabled. Old sessions are not scanned.
+
+`/usage skills` always includes every Skill currently discovered by Pi. Skills that have not been used show `0`.
+
+## Provider support
+
+| Provider | Level | Authentication | Displayed data |
+| --- | --- | --- | --- |
+| OpenAI Codex | Full quota | ChatGPT Plus/Pro OAuth | 5-hour and 7-day quota with reset times |
+| Anthropic Claude | Full or limited | Claude OAuth or API key | OAuth subscription windows; API keys show request/token rate-limit headroom |
+| DeepSeek | Balance | API key | Official balances by currency |
+| GLM / Zhipu BigModel | Full or limited | API key | Coding Plan 5-hour and 7-day quota; standard keys have no official balance query |
+| OpenRouter | Balance | OAuth-resolved key or API key | Account balance or key limit, plus usage |
+| OpenCode Go | Full quota | API key | Rolling 5-hour, weekly, and monthly windows |
+| Kimi Code | Quota or status | Kimi OAuth or Kimi Code API key | 5-hour and weekly quota, or `No active quota` |
+| CLIProxyAPI | Upstream-dependent | Proxy API key and server-side `pi-bridge` | Only accounts and pools returned by `pi-bridge` |
+| xAI / Grok | Status only | OAuth | Account identity and active or spending-limit state |
+| Google Vertex AI | Unsupported | API key, ADC, or service account | `Unsupported` |
+| Google Gemini API / AI Studio | Unsupported | API key | No supported official account balance or quota endpoint |
+
+### How provider data is handled
+
+Native providers are queried through their official origins using authentication resolved by Pi. Reset countdowns are shown only when the provider returns a reset timestamp.
+
+For CLIProxyAPI, install [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) on the CLIProxyAPI server. Pi Usage uses the normal proxy API key and never requests or stores the CLIProxyAPI Management Key. It displays only the accounts and quota pools returned by the bridge.
+
+Proxy accounts are matched by model family and model ID. An unrelated model cannot reuse another provider's quota. Shared pools stay shared: Pi Usage does not turn one Antigravity pool into fictional 5-hour and weekly windows.
+
+Google Vertex quotas depend on the project, region, model, metric, and IAM permissions. They cannot be represented as one subscription-style percentage, so Vertex is reported as unsupported.
+
+## States you may see
+
+| State | Meaning |
+| --- | --- |
+| `Unauthorized` | Pi could not resolve valid credentials, or the provider rejected them |
+| `No active quota` | Authentication worked, but the account has no usable plan or credits |
+| `Unsupported` | No safe, supported balance or quota integration exists |
+| `Bridge Not Found` | CLIProxyAPI is reachable, but its `pi-bridge` endpoint is missing |
+| `stale` | A refresh failed and the last successful result is being shown |
+| `0%` or zero balance | The provider successfully reported a real zero value |
 
 ## Settings
 
-Settings are optional. Use `/usage settings` followed by one of these commands:
-
 ```text
-/usage settings status on|off       # status line; on by default
-/usage settings widget on|off       # detailed widget; off by default
-/usage settings interval <seconds>  # refresh interval; 120 by default
-/usage settings timeout <seconds>   # request timeout; 10 by default
+/usage settings status on|off       # compact status item, default: on
+/usage settings widget on|off       # detailed widget below the editor, default: off
+/usage settings skills on|off       # local Skill counting, default: on
+/usage settings interval <seconds>  # automatic refresh, 30 to 3600, default: 120
+/usage settings timeout <seconds>   # request timeout, 2 to 60, default: 10
 ```
 
-Settings are stored locally at `~/.pi/agent/pi-usage/config.json`.
+Local files:
 
-## Privacy
+```text
+~/.pi/agent/pi-usage/config.json
+~/.pi/agent/pi-usage/skill-usage.jsonl
+```
 
-The plugin does not use browser cookies, telemetry, cloud synchronization, or third-party credential forwarding. Requests to provider APIs stay on the provider's official origin.
+The Skill log is append-only and stores only the Skill name and timestamp.
+
+## Update
+
+```bash
+# Update Pi Usage installed from npm
+pi update npm:@wayner6/pi-usage
+
+# Update all installed extensions without updating Pi itself
+pi update --extensions
+```
+
+In pi-web, open **Settings > Plugins**, update Pi Usage, and reload the session.
+
+## Privacy and security
+
+Pi Usage does not use browser cookies, telemetry, or cloud synchronization. It does not send credentials to third-party origins. Provider requests stay on validated official domains, while CLIProxyAPI requests stay on the configured proxy origin.
+
+Skill counting does not store prompts, conversation text, tool output, or Skill contents.
+
+Security reports are covered by [SECURITY.md](./SECURITY.md).
+
+## Development
+
+```bash
+npm install
+npm run verify
+npm run pack:check
+```
+
+`npm run verify` runs TypeScript checks and the test suite. See [CONTRIBUTING.md](./CONTRIBUTING.md) before submitting a change.
 
 ## Community
 
-Thanks to the [LINUX DO](https://linux.do/) community for discussion and support.
+Thanks to the [LINUX DO](https://linux.do/) community for testing and discussion.
 
 ## License
 

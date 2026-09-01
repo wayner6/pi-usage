@@ -14,7 +14,7 @@ test("controller.refreshAll correctly isolates model baseUrl and filters proxy a
 
   const requestedUrls: string[] = [];
 
-  const mockFetch: typeof fetch = async (input, init) => {
+  const mockFetch: typeof fetch = async (input, _init) => {
     const urlStr = String(input);
     requestedUrls.push(urlStr);
 

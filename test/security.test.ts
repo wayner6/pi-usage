@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bridgeUrl, redact, sameOriginFetch } from "../src/core/security.ts";
+import { bridgeUsageUrl, isUrlOnDomain, sameOriginFetch } from "../src/core/security.ts";
+
+test("official-domain checks reject lookalike hostnames", () => {
+  assert.equal(isUrlOnDomain("https://api.openrouter.ai/v1", "openrouter.ai"), true);
+  assert.equal(isUrlOnDomain("https://evilopenrouter.ai/v1", "openrouter.ai"), false);
+  assert.equal(isUrlOnDomain("://invalid", "openrouter.ai"), false);
+});
 
 test("bridge URL stays on provider origin", () => {
-  assert.equal(bridgeUrl("https://cpa.example.com/v1", "usage").href, "https://cpa.example.com/v0/resource/plugins/pi-bridge/usage");
+  assert.equal(bridgeUsageUrl("https://cpa.example.com/v1").href, "https://cpa.example.com/v0/resource/plugins/pi-bridge/usage");
 });
 
 test("authenticated redirects cannot cross origin", async () => {
@@ -13,8 +19,4 @@ test("authenticated redirects cannot cross origin", async () => {
     async () => new Response(null, { status: 302, headers: { location: "https://evil.example/steal" } }),
     "https://cpa.example.com",
   ), /cross-origin/);
-});
-
-test("diagnostic objects redact common secret fields", () => {
-  assert.deepEqual(redact({ apiKey: "secret", nested: { Authorization: "Bearer secret", ok: 1 } }), { apiKey: "[REDACTED]", nested: { Authorization: "[REDACTED]", ok: 1 } });
 });

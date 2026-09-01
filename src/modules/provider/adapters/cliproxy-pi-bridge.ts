@@ -1,5 +1,5 @@
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
-import { bridgeUrl, safeError, sameOriginFetch } from "../../../core/security.ts";
+import { bridgeUsageUrl, isUrlOnDomain, safeError, sameOriginFetch } from "../../../core/security.ts";
 import { isAccountRelevantToModels, isGroupRelevantToModels, deduplicateSharedQuotaGroups, friendlyGroupName } from "../matching.ts";
 
 const NATIVE_PROVIDER_IDS = new Set([
@@ -21,7 +21,7 @@ const NATIVE_PROVIDER_IDS = new Set([
 ]);
 
 type BridgeGroup = { id?: string; label?: string; remainingFraction?: number; resetTime?: string; models?: Array<{ id?: string; displayName?: string; remainingFraction?: number; resetTime?: string }> };
-type BridgeAccount = { provider?: string; account?: string; authIndex?: string; label?: string; status?: string; disabled?: boolean; unavailable?: boolean; supported?: boolean; error?: string; groups?: BridgeGroup[] };
+type BridgeAccount = { provider?: string; account?: string; authIndex?: string; label?: string; status?: string; disabled?: boolean; unavailable?: boolean; error?: string; groups?: BridgeGroup[] };
 type BridgeUsage = { schemaVersion?: number; generatedAt?: string; cache?: { updatedAt?: string; stale?: boolean; ttlMs?: number }; accounts?: BridgeAccount[]; unsupportedProviders?: string[] };
 
 function metrics(groups: BridgeGroup[]): Metric[] {
@@ -44,25 +44,16 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
     // If explicit baseUrl exists, make sure it's not pointing to official provider APIs
     if (target.baseUrl) {
       try {
-        const url = new URL(target.baseUrl);
-        if (
-          url.origin.includes("deepseek.com") ||
-          url.origin.includes("openai.com") ||
-          url.origin.includes("chatgpt.com") ||
-          url.origin.includes("anthropic.com") ||
-          url.origin.includes("x.ai") ||
-          url.origin.includes("bigmodel.cn") ||
-          url.origin.includes("siliconflow.cn") ||
-          url.origin.includes("siliconflow.com") ||
-          url.origin.includes("openrouter.ai") ||
-          url.origin.includes("opencode.ai") ||
-          url.origin.includes("googleapis.com")
-        ) {
-          return false;
-        }
+        new URL(target.baseUrl);
       } catch {
         return false;
       }
+      const officialDomains = [
+        "deepseek.com", "openai.com", "chatgpt.com", "anthropic.com", "x.ai",
+        "bigmodel.cn", "siliconflow.cn", "siliconflow.com", "openrouter.ai",
+        "opencode.ai", "googleapis.com",
+      ];
+      if (officialDomains.some((domain) => isUrlOnDomain(target.baseUrl!, domain))) return false;
     }
 
     // Accept if providerId hints at proxy/bridge or if any custom non-native baseUrl is present
@@ -75,7 +66,7 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
     if (!baseUrl || !apiKey) return { adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId, state: "unauthorized", fetchedAt, accounts: [], error: "Missing base URL or API key" };
     const origin = new URL(baseUrl).origin;
     try {
-      const response = await sameOriginFetch(bridgeUrl(baseUrl, "usage", force), {
+      const response = await sameOriginFetch(bridgeUsageUrl(baseUrl, force), {
         method: "GET",
         headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json", "X-Pi-Contract": "2" },
         signal,
@@ -85,7 +76,7 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
       if (!response.ok) throw new Error(`pi-bridge returned HTTP ${response.status}`);
       const data = await response.json() as BridgeUsage;
       if (data.schemaVersion !== 1) return { adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId, state: "incompatible", fetchedAt, accounts: [], error: `Unsupported pi-bridge schemaVersion ${String(data.schemaVersion)}` };
-      let accounts = (data.accounts ?? [])
+      const accounts = (data.accounts ?? [])
         .map((account, index) => {
           let rawGroups = account.groups ?? [];
 

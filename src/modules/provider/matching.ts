@@ -1,4 +1,4 @@
-import type { Metric, ProviderTarget, UsageAdapter } from "../../core/types.ts";
+import type { ProviderTarget, UsageAdapter } from "../../core/types.ts";
 import type { UsageConfig } from "../../core/config.ts";
 
 export function chooseAdapter(target: ProviderTarget, adapters: UsageAdapter[], config: UsageConfig): UsageAdapter | undefined {
@@ -6,11 +6,6 @@ export function chooseAdapter(target: ProviderTarget, adapters: UsageAdapter[], 
   if (override === "disabled") return undefined;
   if (override) return adapters.find((adapter) => adapter.id === override);
   return adapters.find((adapter) => adapter.canHandle(target));
-}
-
-export function wildcardMatch(value: string, pattern: string): boolean {
-  const escaped = pattern.replace(/[.+?^${}()|[\\]\\\\]/g, "\\$&").replace(/\\*/g, ".*");
-  return new RegExp(`^${escaped}$`, "i").test(value);
 }
 
 export interface MatchedQuotaItem {
@@ -113,17 +108,17 @@ function isCodexTarget(modelId: string, providerId?: string): boolean {
   return tokens.some((token) => ["codex", "gpt", "openai"].includes(token));
 }
 
-export function matchModelAcrossAccounts(
-  accounts: RawBridgeAccount[],
+export function matchModelAcrossAccounts<T extends RawBridgeAccount>(
+  accounts: T[],
   activeModelId?: string,
   activeProviderId?: string,
-): { account: RawBridgeAccount; quota: MatchedGroupQuota } | undefined {
+): { account: T; quota: MatchedGroupQuota } | undefined {
   if (!accounts.length) return undefined;
   const targetId = (activeModelId ?? "").trim().toLowerCase();
   const targetTokens = tokenizeModelId(targetId);
 
   interface Candidate {
-    account: RawBridgeAccount;
+    account: T;
     group: RawBridgeGroup;
     score: number;
     matchedModelId?: string | undefined;
@@ -152,7 +147,7 @@ export function matchModelAcrossAccounts(
           break;
         }
 
-        if (targetId.includes(mid) || mid.includes(targetId)) {
+        if (targetId && (targetId.includes(mid) || mid.includes(targetId))) {
           const score = 80 + Math.min(10, Math.floor((Math.min(mid.length, targetId.length) / Math.max(mid.length, targetId.length)) * 10));
           if (score > bestScore) {
             bestScore = score;
@@ -246,14 +241,6 @@ export function matchModelAcrossAccounts(
   }
 
   return undefined;
-}
-
-export function matchModelGroup(
-  groups: RawBridgeGroup[],
-  modelId?: string,
-): MatchedGroupQuota | undefined {
-  const res = matchModelAcrossAccounts([{ rawGroups: groups }], modelId);
-  return res?.quota;
 }
 
 /**
@@ -549,5 +536,5 @@ export function isAccountCompatibleWithModel(
     return modelFamilies.some((fam) => fam.some((k) => accountTokens.includes(k)));
   }
 
-  return true;
+  return false;
 }

@@ -2,7 +2,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
-import { safeError, sameOriginFetch } from "../../../core/security.ts";
+import { isUrlOnDomain, safeError, sameOriginFetch } from "../../../core/security.ts";
 
 const XAI_AUTH_ORIGIN = "https://auth.x.ai";
 const XAI_USERINFO_PATH = "/oauth2/userinfo";
@@ -40,16 +40,9 @@ export const xaiAdapter: UsageAdapter = {
   label: "xAI / Grok",
   canHandle(target) {
     const pid = target.providerId.toLowerCase();
-    if (pid === "xai" || pid === "grok") return true;
-    if (target.baseUrl) {
-      try {
-        const origin = new URL(target.baseUrl).origin;
-        if (origin.includes("x.ai")) return true;
-      } catch {
-        return false;
-      }
-    }
-    return false;
+    const nativeId = pid === "xai" || pid === "grok";
+    if (target.baseUrl) return isUrlOnDomain(target.baseUrl, "x.ai");
+    return nativeId;
   },
   async fetch({ target, signal, fetchFn }): Promise<UsageSnapshot> {
     const fetchedAt = new Date().toISOString();
@@ -98,13 +91,10 @@ export const xaiAdapter: UsageAdapter = {
         };
       }
 
-      let userLabel = "Grok Account";
-      let userId = "xai-user";
-      if (userinfoRes.ok) {
-        const info = (await userinfoRes.json()) as XAIUserInfo;
-        userLabel = info.email || info.name || userLabel;
-        userId = info.sub || userId;
-      }
+      if (!userinfoRes.ok) throw new Error(`xAI userinfo returned HTTP ${userinfoRes.status}`);
+      const info = (await userinfoRes.json()) as XAIUserInfo;
+      const userLabel = info.email || info.name || "Grok Account";
+      const userId = info.sub || "xai-user";
 
       // 2. Query billing / spending limit status via lightweight probe
       // xAI returns HTTP 402 with code: 'personal-team-blocked:spending-limit' when credit limit is hit or subscription is required
@@ -137,9 +127,12 @@ export const xaiAdapter: UsageAdapter = {
           if (errData.code?.includes("spending-limit") || errData.error?.includes("credits")) {
             statusText = "Limit Reached";
           }
+        } else if (probeRes.status === 401 || probeRes.status === 403) {
+          statusText = "API Access Unauthorized";
         }
-      } catch {
-        // Probe is best-effort
+      } catch (error) {
+        // The status probe is best-effort, but cancellation must stop the refresh.
+        if (signal.aborted) throw error;
       }
 
       const metrics: Metric[] = [

@@ -5,6 +5,8 @@
     "moduleResolution": "NodeNext",
     "allowImportingTsExtensions": true,
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "skipLibCheck": true,

@@ -2,7 +2,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
-import { safeError, sameOriginFetch } from "../../../core/security.ts";
+import { isUrlOnDomain, safeError, sameOriginFetch } from "../../../core/security.ts";
 import { compactQuotaSummary } from "../../../ui/format.ts";
 
 const BIGMODEL_API_ORIGIN = "https://open.bigmodel.cn";
@@ -64,24 +64,15 @@ export const glmAdapter: UsageAdapter = {
   label: "GLM / 智谱 BigModel",
   canHandle(target) {
     const pid = target.providerId.toLowerCase();
-    if (
-      pid === "glm" ||
-      pid === "zhipu" ||
-      pid === "bigmodel" ||
-      pid === "zai" ||
-      pid === "zai-coding-cn"
-    ) {
-      return true;
-    }
+    const nativeId = pid === "glm"
+      || pid === "zhipu"
+      || pid === "bigmodel"
+      || pid === "zai"
+      || pid === "zai-coding-cn";
     if (target.baseUrl) {
-      try {
-        const host = new URL(target.baseUrl).host;
-        if (host.includes("bigmodel.cn") || host.includes("z.ai")) return true;
-      } catch {
-        return false;
-      }
+      return isUrlOnDomain(target.baseUrl, "bigmodel.cn") || isUrlOnDomain(target.baseUrl, "z.ai");
     }
-    return false;
+    return nativeId;
   },
   async fetch({ target, signal, fetchFn }): Promise<UsageSnapshot> {
     const fetchedAt = new Date().toISOString();
@@ -153,7 +144,8 @@ export const glmAdapter: UsageAdapter = {
               const resetMs = limit.nextResetTime && limit.nextResetTime < 10_000_000_000
                 ? limit.nextResetTime * 1000
                 : limit.nextResetTime;
-              const resetAt = resetMs ? new Date(resetMs).toISOString() : undefined;
+              const resetDate = typeof resetMs === "number" ? new Date(resetMs) : undefined;
+              const resetAt = resetDate && Number.isFinite(resetDate.getTime()) ? resetDate.toISOString() : undefined;
               metrics.push({
                 kind: "quota-window",
                 id,

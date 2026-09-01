@@ -169,7 +169,7 @@ export class ProviderUsageController {
 
       return {
         ...snapshot,
-        accounts: [matched.account as never],
+        accounts: [matched.account],
         state: snapshot.state,
         summary,
       };

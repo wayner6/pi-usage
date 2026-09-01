@@ -90,6 +90,7 @@ export const kimiCodingAdapter: UsageAdapter = {
         {
           method: "GET",
           headers: {
+            ...resolvedHeaders,
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },

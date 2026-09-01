@@ -3,7 +3,9 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import { loadConfig, type UsageConfig } from "./core/config.ts";
 import type { UsageSnapshot } from "./core/types.ts";
 import { ProviderUsageController } from "./modules/provider/controller.ts";
+import { SkillUsageController } from "./modules/skills/controller.ts";
 import { showDetails } from "./ui/details.ts";
+import { showSkillStats } from "./ui/skills.ts";
 import { compactSnapshot, snapshotLines } from "./ui/format.ts";
 import { handleSettings } from "./settings.ts";
 import { safeError } from "./core/security.ts";
@@ -19,6 +21,7 @@ export default function (pi: ExtensionAPI) {
   let lastContext: ExtensionContext | undefined;
   let observedModelKey: string | undefined;
   let renderGeneration = 0;
+  const skillController = new SkillUsageController(pi);
 
   function modelKey(model: Model<Api> | undefined): string | undefined {
     return model ? `${model.provider}/${model.id}/${model.baseUrl}` : undefined;
@@ -26,6 +29,15 @@ export default function (pi: ExtensionAPI) {
 
   function liveModel(ctx: ExtensionContext): Model<Api> | undefined {
     return ctx.model;
+  }
+
+  function displayOrigin(baseUrl: string | undefined): string {
+    if (!baseUrl) return "not exposed by model";
+    try {
+      return new URL(baseUrl).origin;
+    } catch {
+      return "invalid provider URL";
+    }
   }
 
   function render(ctx: ExtensionContext, snapshot?: UsageSnapshot, model: Model<Api> | undefined = ctx.model): void {
@@ -86,10 +98,25 @@ export default function (pi: ExtensionAPI) {
   async function command(args: string, ctx: ExtensionCommandContext): Promise<void> {
     const [action = config.display.detailsDefault, ...rest] = args.trim().split(/\s+/).filter(Boolean);
     if (action === "settings") {
-      config = await handleSettings(rest.join(" "), ctx, config);
+      const previous = JSON.stringify(config);
+      const next = await handleSettings(rest.join(" "), ctx, config);
+      if (JSON.stringify(next) === previous) return;
+      config = next;
       controller.setConfig(config);
+      if (!config.skills.enabled) skillController.finishRun();
       startTimer(ctx);
-      await refreshCurrent(ctx);
+      const cached = ctx.model ? controller.cache.values().find((item) => item.sourceProviderId === ctx.model?.provider) : undefined;
+      render(ctx, cached);
+      return;
+    }
+    if (action === "skills") {
+      if (rest.length > 0) {
+        ctx.ui.notify("Usage: /usage skills", "warning");
+        return;
+      }
+      const installedSkills = skillController.installedSkills(ctx.cwd);
+      const stats = await skillController.globalStats();
+      await showSkillStats(ctx, installedSkills, stats);
       return;
     }
     if (action === "doctor") {
@@ -97,7 +124,7 @@ export default function (pi: ExtensionAPI) {
       const deepSeekAuth = ctx.modelRegistry.getProviderAuthStatus("deepseek");
       const lines = [
         `Model: ${ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "none"}`,
-        `Provider base URL: ${ctx.model?.baseUrl ? new URL(ctx.model.baseUrl).origin : "not exposed by model"}`,
+        `Provider base URL: ${displayOrigin(ctx.model?.baseUrl)}`,
         `Current adapter: ${current?.adapterId ?? "none"}`,
         `Current state: ${current?.state ?? "unavailable"}`,
         `Current auth: ${current?.state === "unauthorized" ? "missing or rejected" : "resolved without displaying secret"}`,
@@ -119,18 +146,42 @@ export default function (pi: ExtensionAPI) {
       await showDetails(ctx, snapshot ? [controller.currentView(ctx, snapshot) ?? snapshot] : []);
       return;
     }
+    if (action !== "all") {
+      ctx.ui.notify("Usage: /usage [all|current|refresh|doctor|skills|settings]", "warning");
+      return;
+    }
     const snapshots = await controller.refreshAll(ctx, false);
     await showDetails(ctx, snapshots);
   }
 
-  pi.registerCommand("usage", { description: "Show provider balances and quota windows", handler: command });
-  pi.registerCommand("quota", { description: "Alias for /usage", handler: command });
+  pi.registerCommand("usage", { description: "Show provider quotas, balances, and skill activations", handler: command });
 
   pi.on("session_start", async (_event, ctx) => {
     config = await loadConfig();
     controller = new ProviderUsageController(config);
+    skillController.refreshCatalog(ctx.cwd);
     startTimer(ctx);
     await refreshCurrent(ctx);
+  });
+
+  pi.on("input", async (event, ctx) => {
+    if (config.skills.enabled) await skillController.captureInput(event.text, ctx);
+  });
+  pi.on("agent_start", async (_event, _ctx) => {
+    if (config.skills.enabled) await skillController.beginRun();
+  });
+  pi.on("agent_end", async () => {
+    skillController.finishRun();
+  });
+  pi.on("tool_call", async (event, ctx) => {
+    if (!config.skills.enabled || event.toolName !== "read") return;
+    const path = (event.input as { path?: unknown }).path;
+    if (typeof path === "string") skillController.captureReadCall(event.toolCallId, path, ctx);
+  });
+  pi.on("tool_result", async (event) => {
+    if (config.skills.enabled && event.toolName === "read") {
+      await skillController.captureReadResult(event.toolCallId, event.isError);
+    }
   });
 
   pi.on("model_select", async (event, ctx) => {
@@ -145,6 +196,7 @@ export default function (pi: ExtensionAPI) {
     timer = undefined;
     modelWatchTimer = undefined;
     observedModelKey = undefined;
+    skillController.finishRun();
     renderGeneration++;
     lastContext = undefined;
     controller?.cache.clear();

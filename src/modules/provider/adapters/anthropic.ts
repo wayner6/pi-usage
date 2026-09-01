@@ -17,7 +17,6 @@ interface StoredAuth {
     refresh?: string;
     apiKey?: string;
     key?: string;
-    expires?: number;
   };
 }
 
@@ -56,7 +55,7 @@ function tokenHash(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-async function resolveLocalAnthropicAuth(): Promise<{ token?: string; isOAuth: boolean; expires?: number }> {
+async function resolveLocalAnthropicAuth(): Promise<{ token?: string; isOAuth: boolean }> {
   try {
     const authPath = join(getAgentDir(), "auth.json");
     const raw = await readFile(authPath, "utf8");
@@ -67,7 +66,6 @@ async function resolveLocalAnthropicAuth(): Promise<{ token?: string; isOAuth: b
       return {
         ...(token ? { token } : {}),
         isOAuth,
-        ...(anthropic.expires ? { expires: anthropic.expires } : {}),
       };
     }
   } catch {

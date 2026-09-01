@@ -24,8 +24,13 @@ export const deepSeekAdapter: UsageAdapter = {
   id: "deepseek",
   label: "DeepSeek",
   canHandle(target) {
-    const origin = target.baseUrl ? new URL(target.baseUrl).origin : undefined;
-    return target.providerId.toLowerCase() === "deepseek" && (!origin || origin === OFFICIAL_ORIGIN);
+    if (target.providerId.toLowerCase() !== "deepseek") return false;
+    if (!target.baseUrl) return true;
+    try {
+      return new URL(target.baseUrl).origin === OFFICIAL_ORIGIN;
+    } catch {
+      return false;
+    }
   },
   async fetch({ target, signal, fetchFn }): Promise<UsageSnapshot> {
     const fetchedAt = new Date().toISOString();

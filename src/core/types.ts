@@ -13,11 +13,8 @@ export type UsageState =
 export type Metric =
   | { kind: "balance"; id: string; label: string; amount: number; currency: string; detail?: string }
   | { kind: "quota-window"; id: string; label: string; remainingFraction: number; resetAt?: string; detail?: string }
-  | { kind: "credits"; id: string; label: string; remaining: number; unit: string; detail?: string }
   | { kind: "usage-limit"; id: string; label: string; used: number; limit: number; unit: string; detail?: string }
-  | { kind: "rate-limit"; id: string; label: string; value: number; unit: string; detail?: string }
-  | { kind: "status"; id: string; label: string; value: string; detail?: string }
-  | { kind: "custom"; id: string; label: string; value: string; detail?: string };
+  | { kind: "status"; id: string; label: string; value: string; detail?: string };
 
 export interface UsageAccount {
   id: string;

@@ -1,5 +1,5 @@
 import type { UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
-import { safeError, sameOriginFetch } from "../../../core/security.ts";
+import { isUrlOnDomain, safeError, sameOriginFetch } from "../../../core/security.ts";
 
 const OFFICIAL_ORIGIN = "https://openrouter.ai";
 
@@ -24,15 +24,9 @@ export const openRouterAdapter: UsageAdapter = {
   id: "openrouter",
   label: "OpenRouter",
   canHandle(target) {
-    const pid = target.providerId.toLowerCase();
-    if (pid === "openrouter") return true;
-    if (target.baseUrl) {
-      try {
-        const origin = new URL(target.baseUrl).origin;
-        if (origin.includes("openrouter.ai")) return true;
-      } catch { return false; }
-    }
-    return false;
+    const nativeId = target.providerId.toLowerCase() === "openrouter";
+    if (target.baseUrl) return isUrlOnDomain(target.baseUrl, "openrouter.ai");
+    return nativeId;
   },
   async fetch({ target, signal, fetchFn }): Promise<UsageSnapshot> {
     const fetchedAt = new Date().toISOString();
@@ -74,7 +68,9 @@ export const openRouterAdapter: UsageAdapter = {
                 remaining = Math.max(0, credData.data.total_credits - credData.data.total_usage);
               }
             }
-          } catch {}
+          } catch (error) {
+            if (signal.aborted) throw error;
+          }
         }
 
         const metrics = [];

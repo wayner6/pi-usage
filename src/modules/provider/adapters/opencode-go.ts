@@ -1,5 +1,5 @@
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
-import { safeError, sameOriginFetch } from "../../../core/security.ts";
+import { isUrlOnDomain, safeError, sameOriginFetch } from "../../../core/security.ts";
 import { compactQuotaSummary } from "../../../ui/format.ts";
 
 const OFFICIAL_ORIGIN = "https://opencode.ai";
@@ -38,14 +38,9 @@ export const openCodeGoAdapter: UsageAdapter = {
   label: "OpenCode Go",
   canHandle(target) {
     const pid = target.providerId.toLowerCase();
-    if (pid === "opencode-go" || pid === "opencode" || pid === "opencode_go") return true;
-    if (target.baseUrl) {
-      try {
-        const host = new URL(target.baseUrl).host;
-        if (host.includes("opencode.ai")) return true;
-      } catch { return false; }
-    }
-    return false;
+    const nativeId = pid === "opencode-go" || pid === "opencode" || pid === "opencode_go";
+    if (target.baseUrl) return isUrlOnDomain(target.baseUrl, "opencode.ai");
+    return nativeId;
   },
   async fetch({ target, signal, fetchFn }): Promise<UsageSnapshot> {
     const fetchedAt = new Date().toISOString();

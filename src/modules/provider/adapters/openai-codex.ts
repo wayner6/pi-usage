@@ -2,7 +2,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
-import { safeError, sameOriginFetch } from "../../../core/security.ts";
+import { isUrlOnDomain, safeError, sameOriginFetch } from "../../../core/security.ts";
 import { compactQuotaSummary } from "../../../ui/format.ts";
 
 const CODEX_BASE_ORIGIN = "https://chatgpt.com";
@@ -90,17 +90,9 @@ export const openAICodexAdapter: UsageAdapter = {
   id: "openai-codex",
   label: "OpenAI Codex (ChatGPT)",
   canHandle(target) {
-    const pid = target.providerId.toLowerCase();
-    if (pid === "openai-codex") return true;
-    if (target.baseUrl) {
-      try {
-        const origin = new URL(target.baseUrl).origin;
-        if (origin.includes("chatgpt.com")) return true;
-      } catch {
-        return false;
-      }
-    }
-    return false;
+    const nativeId = target.providerId.toLowerCase() === "openai-codex";
+    if (target.baseUrl) return isUrlOnDomain(target.baseUrl, "chatgpt.com");
+    return nativeId;
   },
   async fetch({ target, signal, fetchFn }): Promise<UsageSnapshot> {
     const fetchedAt = new Date().toISOString();

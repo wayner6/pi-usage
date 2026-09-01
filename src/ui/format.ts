@@ -43,12 +43,12 @@ export function metricText(metric: Metric): string {
       const symbol = metric.currency === "CNY" || metric.currency === "RMB" ? "¥" : metric.currency === "USD" ? "$" : `${metric.currency} `;
       return `${metric.label}: ${symbol}${metric.amount.toFixed(2)}${metric.detail ? ` · ${metric.detail}` : ""}`;
     }
-    case "quota-window": return `${metric.label} ${percentBar(metric.remainingFraction)} ${Math.round(metric.remainingFraction * 100)}% left${relativeTime(metric.resetAt) ? ` · ${relativeTime(metric.resetAt)}` : ""}`;
-    case "credits": return `${metric.label}: ${metric.remaining} ${metric.unit}`;
+    case "quota-window": {
+      const reset = relativeTime(metric.resetAt);
+      return `${metric.label} ${percentBar(metric.remainingFraction)} ${Math.round(metric.remainingFraction * 100)}% left${reset ? ` · ${reset}` : ""}`;
+    }
     case "usage-limit": return `${metric.label}: ${metric.used}/${metric.limit} ${metric.unit}`;
-    case "rate-limit": return `${metric.label}: ${metric.value} ${metric.unit}`;
     case "status": return `${metric.label}: ${metric.value}`;
-    case "custom": return `${metric.label}: ${metric.value}`;
   }
 }
 

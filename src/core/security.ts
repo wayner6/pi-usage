@@ -1,17 +1,17 @@
-const SENSITIVE_KEYS = /authorization|api[-_]?key|token|secret|password/i;
-
-export function normalizeOrigin(baseUrl: string): URL | undefined {
+export function isUrlOnDomain(value: string, domain: string): boolean {
   try {
-    return new URL(baseUrl);
+    const hostname = new URL(value).hostname.toLowerCase();
+    const expected = domain.toLowerCase();
+    return hostname === expected || hostname.endsWith(`.${expected}`);
   } catch {
-    return undefined;
+    return false;
   }
 }
 
-export function bridgeUrl(baseUrl: string, path: "capabilities" | "usage", force = false): URL {
+export function bridgeUsageUrl(baseUrl: string, force = false): URL {
   const base = new URL(baseUrl);
-  const result = new URL(`/v0/resource/plugins/pi-bridge/${path}`, base.origin);
-  if (force && path === "usage") result.searchParams.set("refresh", "1");
+  const result = new URL("/v0/resource/plugins/pi-bridge/usage", base.origin);
+  if (force) result.searchParams.set("refresh", "1");
   return result;
 }
 
@@ -33,14 +33,6 @@ export async function sameOriginFetch(
     return sameOriginFetch(next, init, fetchFn, expectedOrigin, redirects + 1);
   }
   return response;
-}
-
-export function redact(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(redact);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, SENSITIVE_KEYS.test(key) ? "[REDACTED]" : redact(item)]));
-  }
-  return value;
 }
 
 export function safeError(error: unknown): string {
