@@ -1,6 +1,3 @@
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
 import { isUrlOnDomain, safeError, sameOriginFetch } from "../../../core/security.ts";
 import { compactQuotaSummary } from "../../../ui/format.ts";
@@ -20,16 +17,19 @@ interface WhamUsageResponse {
   account_id?: string;
   email?: string;
   plan_type?: string;
-  rate_limit?: {
-    allowed?: boolean;
-    limit_reached?: boolean;
-    primary_window?: WhamWindow | null;
-    secondary_window?: WhamWindow | null;
-  } | null;
-  credits?: {
-    has_credits?: boolean;
-    balance?: string;
-  } | null;
+  rate_limit?: WhamRateLimit | null;
+  additional_rate_limits?: Array<{
+    limit_name?: string;
+    metered_feature?: string;
+    rate_limit?: WhamRateLimit | null;
+  }> | null;
+}
+
+interface WhamRateLimit {
+  allowed?: boolean;
+  limit_reached?: boolean;
+  primary_window?: WhamWindow | null;
+  secondary_window?: WhamWindow | null;
 }
 
 function windowLabel(window: WhamWindow | null | undefined, fallback: string): string {
@@ -48,15 +48,17 @@ function parseWindow(
   defaultId: string,
   defaultLabel: string,
 ): Metric | undefined {
-  if (!window || typeof window.used_percent !== "number") return undefined;
+  if (!window || typeof window.used_percent !== "number" || !Number.isFinite(window.used_percent)) return undefined;
   const used = Math.min(100, Math.max(0, window.used_percent));
   const remainingFraction = Math.max(0, (100 - used) / 100);
 
   let resetAt: string | undefined;
   if (typeof window.reset_at === "number" && window.reset_at > 0) {
-    resetAt = new Date(window.reset_at * 1000).toISOString();
+    const time = new Date(window.reset_at * 1000);
+    if (Number.isFinite(time.getTime())) resetAt = time.toISOString();
   } else if (typeof window.reset_after_seconds === "number" && window.reset_after_seconds > 0) {
-    resetAt = new Date(Date.now() + window.reset_after_seconds * 1000).toISOString();
+    const time = new Date(Date.now() + window.reset_after_seconds * 1000);
+    if (Number.isFinite(time.getTime())) resetAt = time.toISOString();
   }
 
   return {
@@ -68,43 +70,31 @@ function parseWindow(
   };
 }
 
-async function resolveLocalCodexAuth(): Promise<{ accessToken?: string | undefined; accountId?: string | undefined }> {
+function accountIdFromToken(token: string): string | undefined {
   try {
-    const authPath = join(getAgentDir(), "auth.json");
-    const raw = await readFile(authPath, "utf8");
-    const parsed = JSON.parse(raw) as Record<string, { access?: string; apiKey?: string; accountId?: string; chatgpt_account_id?: string }>;
-    const codex = parsed["openai-codex"];
-    if (codex) {
-      return {
-        accessToken: codex.access ?? codex.apiKey,
-        accountId: codex.accountId ?? codex.chatgpt_account_id,
-      };
-    }
+    const payload = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString("utf8")) as {
+      "https://api.openai.com/auth"?: { chatgpt_account_id?: unknown };
+    };
+    const id = payload["https://api.openai.com/auth"]?.chatgpt_account_id;
+    return typeof id === "string" && id.length > 0 ? id : undefined;
   } catch {
-    // Ignore fallback errors
+    return undefined;
   }
-  return {};
 }
 
 export const openAICodexAdapter: UsageAdapter = {
   id: "openai-codex",
   label: "OpenAI Codex (ChatGPT)",
   canHandle(target) {
-    const nativeId = target.providerId.toLowerCase() === "openai-codex";
-    if (target.baseUrl) return isUrlOnDomain(target.baseUrl, "chatgpt.com");
-    return nativeId;
+    if (target.providerId.toLowerCase() !== "openai-codex") return false;
+    return !target.baseUrl || isUrlOnDomain(target.baseUrl, "chatgpt.com");
   },
   async fetch({ target, signal, fetchFn }): Promise<UsageSnapshot> {
     const fetchedAt = new Date().toISOString();
-    const authRecord = target.auth?.auth as Record<string, unknown> | undefined;
-    let accessToken = (authRecord?.apiKey ?? authRecord?.access) as string | undefined;
-    let accountId = (authRecord?.accountId ?? authRecord?.chatgpt_account_id) as string | undefined;
-
-    if (!accessToken || !accountId) {
-      const local = await resolveLocalCodexAuth();
-      accessToken = accessToken ?? local.accessToken;
-      accountId = accountId ?? local.accountId;
-    }
+    // Pi resolves and refreshes the OAuth credential. Never use a regular API key here.
+    const isOAuth = String(target.auth?.source ?? "").toLowerCase() === "oauth";
+    const accessToken = isOAuth ? target.auth?.auth.apiKey : undefined;
+    const accountId = accessToken ? accountIdFromToken(accessToken) : undefined;
 
     if (!accessToken) {
       return {
@@ -114,7 +104,7 @@ export const openAICodexAdapter: UsageAdapter = {
         state: "unauthorized",
         fetchedAt,
         accounts: [],
-        error: "No access token found in Pi auth for openai-codex",
+        error: "No ChatGPT OAuth access token found for openai-codex",
       };
     }
 
@@ -159,36 +149,38 @@ export const openAICodexAdapter: UsageAdapter = {
 
       const secondary = parseWindow(data.rate_limit?.secondary_window, "secondary-window", "Codex 7d");
       if (secondary) metrics.push(secondary);
+      const ordinaryMetrics = metrics.length;
+
+      const additional = Array.isArray(data.additional_rate_limits) ? data.additional_rate_limits : [];
+      for (const [index, limit] of additional.entries()) {
+        if (!limit || typeof limit !== "object") continue;
+        const rawName = typeof limit.limit_name === "string" ? limit.limit_name : limit.metered_feature;
+        const name = (typeof rawName === "string" ? rawName : `Additional ${index + 1}`)
+          .replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, 80) || `Additional ${index + 1}`;
+        for (const [position, window] of [["primary", limit.rate_limit?.primary_window], ["secondary", limit.rate_limit?.secondary_window]] as const) {
+          const metric = parseWindow(window, `additional-${index}-${position}`, `Codex ${position}`);
+          if (metric) metrics.push({ ...metric, label: `${name} · ${metric.label.replace(/^Codex /, "")}` });
+        }
+      }
 
       const planLabel = data.plan_type ? `ChatGPT ${data.plan_type.toUpperCase()}` : "ChatGPT Plus/Pro";
       const accountLabel = data.email || data.user_id || planLabel;
 
-      const rawGroups = metrics.map((m) => {
-        const qw = m as Extract<Metric, { kind: "quota-window" }>;
-        return {
-          id: qw.id,
-          label: qw.label,
-          remainingFraction: qw.remainingFraction,
-          ...(qw.resetAt ? { resetTime: qw.resetAt } : {}),
-          models: [{ id: qw.id }],
-        };
-      });
-
       const accounts = [
         {
-          id: data.account_id || data.user_id || "openai-codex-account",
+          id: data.account_id || accountId || data.user_id || "openai-codex-account",
           provider: "openai-codex",
           label: accountLabel,
           status: data.rate_limit?.limit_reached ? "limit_reached" : "available",
           metrics,
-          rawGroups,
         },
       ];
 
-      const quotaMetrics = metrics.filter(
-        (metric): metric is Extract<Metric, { kind: "quota-window" }> => metric.kind === "quota-window",
-      );
-      const summary = compactQuotaSummary("Codex", quotaMetrics);
+      // Keep the footer focused on ordinary 5h/7d limits; additional model
+      // limits remain available in /usage without masquerading as main quota.
+      const summary = ordinaryMetrics
+        ? compactQuotaSummary("Codex", metrics.slice(0, ordinaryMetrics))
+        : compactQuotaSummary("Codex", metrics, 1);
 
       return {
         adapterId: this.id,

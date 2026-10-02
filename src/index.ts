@@ -121,15 +121,13 @@ export default function (pi: ExtensionAPI) {
     }
     if (action === "doctor") {
       const current = await controller.refreshCurrent(ctx, false);
-      const deepSeekAuth = ctx.modelRegistry.getProviderAuthStatus("deepseek");
       const lines = [
         `Model: ${ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "none"}`,
         `Provider base URL: ${displayOrigin(ctx.model?.baseUrl)}`,
         `Current adapter: ${current?.adapterId ?? "none"}`,
         `Current state: ${current?.state ?? "unavailable"}`,
         `Current auth: ${current?.state === "unauthorized" ? "missing or rejected" : "resolved without displaying secret"}`,
-        `DeepSeek auth: ${deepSeekAuth.configured ? `configured${deepSeekAuth.source ? ` (${deepSeekAuth.source})` : ""}` : "not configured"}`,
-        `Hint: /usage current shows only ${ctx.model?.provider ?? "the active provider"}; use /usage all for DeepSeek plus other configured providers.`,
+        `Hint: /usage current shows only ${ctx.model?.provider ?? "the active provider"}; use /usage all for supported configured providers.`,
         ...(current?.error ? [`Problem: ${current.error}`] : []),
         ...(current?.state === "not-installed" ? ["Fix: install and enable pi-bridge on the CLIProxyAPI server."] : []),
       ];
@@ -154,7 +152,7 @@ export default function (pi: ExtensionAPI) {
     await showDetails(ctx, snapshots);
   }
 
-  pi.registerCommand("usage", { description: "Show provider quotas, balances, and skill activations", handler: command });
+  pi.registerCommand("usage", { description: "Show ChatGPT OAuth and CPA quotas, and skill activations", handler: command });
 
   pi.on("session_start", async (_event, ctx) => {
     config = await loadConfig();
@@ -164,11 +162,14 @@ export default function (pi: ExtensionAPI) {
     await refreshCurrent(ctx);
   });
 
-  pi.on("input", async (event, ctx) => {
-    if (config.skills.enabled) await skillController.captureInput(event.text, ctx);
+  pi.on("agent_start", async () => {
+    if (config.skills.enabled) skillController.beginRun();
   });
-  pi.on("agent_start", async (_event, _ctx) => {
-    if (config.skills.enabled) await skillController.beginRun();
+  pi.on("message_start", async (event, ctx) => {
+    if (!config.skills.enabled || event.message.role !== "user") return;
+    const content = event.message.content;
+    const text = typeof content === "string" ? content : content.find((part) => part.type === "text")?.text;
+    if (text) await skillController.captureMessage(text, ctx);
   });
   pi.on("agent_end", async () => {
     skillController.finishRun();

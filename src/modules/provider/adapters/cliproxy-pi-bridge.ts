@@ -10,6 +10,12 @@ const NATIVE_PROVIDER_IDS = new Set([
   "glm",
   "zai",
   "zai-coding-cn",
+  "kimi-coding",
+  "kimi-code",
+  "kimi",
+  "moonshot-code",
+  "zhipu",
+  "bigmodel",
   "siliconflow",
   "siliconflow-en",
   "siliconflow-cn",
@@ -51,7 +57,7 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
       const officialDomains = [
         "deepseek.com", "openai.com", "chatgpt.com", "anthropic.com", "x.ai",
         "bigmodel.cn", "siliconflow.cn", "siliconflow.com", "openrouter.ai",
-        "opencode.ai", "googleapis.com",
+        "opencode.ai", "googleapis.com", "kimi.com", "z.ai",
       ];
       if (officialDomains.some((domain) => isUrlOnDomain(target.baseUrl!, domain))) return false;
     }

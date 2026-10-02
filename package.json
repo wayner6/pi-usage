@@ -1,10 +1,10 @@
 {
   "name": "@wayner6/pi-usage",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publishConfig": {
     "access": "public"
   },
-  "description": "Provider quota monitoring and local skill activation statistics for Pi and pi-web",
+  "description": "ChatGPT OAuth and CLIProxyAPI quota monitoring with local skill statistics for Pi and pi-web",
   "type": "module",
   "license": "MIT",
   "keywords": [
@@ -13,7 +13,7 @@
     "usage",
     "quota",
     "skills",
-    "deepseek",
+    "codex",
     "cliproxyapi"
   ],
   "files": [

@@ -7,17 +7,10 @@ export interface UsageConfig {
   refresh: { intervalSeconds: number; timeoutSeconds: number };
   skills: { enabled: boolean };
   adapters: {
-    deepseek: { enabled: boolean };
     cliproxyPiBridge: { enabled: boolean };
     openaiCodex: { enabled: boolean };
-    xai: { enabled: boolean };
-    anthropic: { enabled: boolean };
-    glm: { enabled: boolean };
-    openrouter: { enabled: boolean };
-    opencodeGo: { enabled: boolean };
-    kimiCoding: { enabled: boolean };
   };
-  providerOverrides: Record<string, "deepseek" | "cliproxy-pi-bridge" | "openai-codex" | "xai" | "anthropic" | "glm" | "openrouter" | "opencode-go" | "kimi-coding" | "disabled">;
+  providerOverrides: Record<string, "cliproxy-pi-bridge" | "openai-codex" | "disabled">;
 }
 
 export const DEFAULT_CONFIG: UsageConfig = {
@@ -25,15 +18,8 @@ export const DEFAULT_CONFIG: UsageConfig = {
   refresh: { intervalSeconds: 120, timeoutSeconds: 10 },
   skills: { enabled: true },
   adapters: {
-    deepseek: { enabled: true },
     cliproxyPiBridge: { enabled: true },
     openaiCodex: { enabled: true },
-    xai: { enabled: true },
-    anthropic: { enabled: true },
-    glm: { enabled: true },
-    openrouter: { enabled: true },
-    opencodeGo: { enabled: true },
-    kimiCoding: { enabled: true },
   },
   providerOverrides: {},
 };
@@ -53,8 +39,7 @@ function boolean(value: unknown, fallback: boolean): boolean {
 function providerOverrides(value: unknown): UsageConfig["providerOverrides"] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const allowed = new Set([
-    "deepseek", "cliproxy-pi-bridge", "openai-codex", "xai", "anthropic",
-    "glm", "openrouter", "opencode-go", "kimi-coding", "disabled",
+    "cliproxy-pi-bridge", "openai-codex", "disabled",
   ]);
   return Object.fromEntries(
     Object.entries(value).filter((entry): entry is [string, UsageConfig["providerOverrides"][string]] =>
@@ -78,15 +63,8 @@ export async function loadConfig(): Promise<UsageConfig> {
       },
       skills: { enabled: boolean(parsed.skills?.enabled, DEFAULT_CONFIG.skills.enabled) },
       adapters: {
-        deepseek: { enabled: boolean(parsed.adapters?.deepseek?.enabled, DEFAULT_CONFIG.adapters.deepseek.enabled) },
         cliproxyPiBridge: { enabled: boolean(parsed.adapters?.cliproxyPiBridge?.enabled, DEFAULT_CONFIG.adapters.cliproxyPiBridge.enabled) },
         openaiCodex: { enabled: boolean(parsed.adapters?.openaiCodex?.enabled, DEFAULT_CONFIG.adapters.openaiCodex.enabled) },
-        xai: { enabled: boolean(parsed.adapters?.xai?.enabled, DEFAULT_CONFIG.adapters.xai.enabled) },
-        anthropic: { enabled: boolean(parsed.adapters?.anthropic?.enabled, DEFAULT_CONFIG.adapters.anthropic.enabled) },
-        glm: { enabled: boolean(parsed.adapters?.glm?.enabled, DEFAULT_CONFIG.adapters.glm.enabled) },
-        openrouter: { enabled: boolean(parsed.adapters?.openrouter?.enabled, DEFAULT_CONFIG.adapters.openrouter.enabled) },
-        opencodeGo: { enabled: boolean(parsed.adapters?.opencodeGo?.enabled, DEFAULT_CONFIG.adapters.opencodeGo.enabled) },
-        kimiCoding: { enabled: boolean(parsed.adapters?.kimiCoding?.enabled, DEFAULT_CONFIG.adapters.kimiCoding.enabled) },
       },
       providerOverrides: providerOverrides(parsed.providerOverrides),
     };

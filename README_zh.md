@@ -2,7 +2,7 @@
 
 # Pi Usage
 
-为 [Pi](https://github.com/earendil-works/pi-mono) 和 [pi-web](https://github.com/agegr/pi-web) 显示服务商余额、额度窗口、重置时间，并在本地统计 Skill 使用次数。
+为 [Pi](https://github.com/earendil-works/pi-mono) 和 [pi-web](https://github.com/agegr/pi-web) 显示 ChatGPT OAuth 与 CLIProxyAPI 额度窗口、重置时间，并在本地统计 Skill 使用次数。
 
 [English](./README.md) · [反馈问题](https://github.com/wayner6/pi-usage/issues)
 
@@ -23,7 +23,7 @@ Codex · 5h 92% (resets in 2h) · 7d 85% (resets in 5d 3h)
 /usage skills
 ```
 
-状态会跟随当前模型切换。服务商没有公开余额或额度接口时，插件会明确说明，不会猜测数字。网络错误、认证缺失、不支持、套餐耗尽和真实的零余额会显示为不同状态。
+状态会跟随当前模型切换。只查询 ChatGPT OAuth（OpenAI Codex）与安装了 `pi-bridge` 的 CLIProxyAPI；其他原生服务商显示不支持。网络错误、认证缺失、不支持、额度耗尽和真实的零额度会显示为不同状态。
 
 ## 使用演示
 
@@ -89,7 +89,7 @@ Pi Usage 只注册 `/usage` 这一个命令。
 
 | 命令 | 作用 |
 | --- | --- |
-| `/usage` | 查看所有已配置服务商的余额、额度或当前状态 |
+| `/usage` | 查看已配置的 ChatGPT OAuth 与 CLIProxyAPI 服务商 |
 | `/usage all` | 与 `/usage` 相同 |
 | `/usage current` | 只查看当前模型所属服务商 |
 | `/usage refresh` | 跳过缓存，立即刷新当前服务商 |
@@ -101,7 +101,7 @@ Pi Usage 只注册 `/usage` 这一个命令。
 
 Pi 暂时没有提供独立的 `skill_invoked` 事件。Pi Usage 会在以下两种情况下识别一次 Skill 激活：
 
-1. 用户执行 `/skill:name`。
+1. `/skill:name` 命令被 Pi 接收并进入 Agent Run（提交失败或队列取消不计数）。
 2. 模型成功读取 Pi 已发现 Skill 的入口文件。
 
 同一个 Agent Run 内，同一 Skill 只计一次。因此，先执行 `/skill:name`，随后模型再读取它的 `SKILL.md`，最终只增加一次，不会重复计数。
@@ -112,27 +112,18 @@ Pi 暂时没有提供独立的 `skill_invoked` 事件。Pi Usage 会在以下两
 
 | 服务商 | 支持级别 | 认证方式 | 显示内容 |
 | --- | --- | --- | --- |
-| OpenAI Codex | 完整额度 | ChatGPT Plus/Pro OAuth | 5 小时和 7 天额度及重置时间 |
-| Anthropic Claude | 完整或有限 | Claude OAuth 或 API Key | OAuth 订阅额度；API Key 只显示请求数和 Token 限流余量 |
-| DeepSeek | 余额 | API Key | 官方接口返回的各币种余额 |
-| GLM / 智谱 BigModel | 完整或有限 | API Key | Coding Plan 的 5 小时和 7 天额度；普通 Key 没有官方余额接口 |
-| OpenRouter | 余额 | OAuth 解析出的 Key 或 API Key | 账户余额或 Key 限额，以及累计用量 |
-| OpenCode Go | 完整额度 | API Key | 5 小时、周和月滚动窗口 |
-| Kimi Code | 额度或状态 | Kimi OAuth 或 Kimi Code API Key | 5 小时和周额度，或 `No active quota` |
+| OpenAI Codex | 完整额度 | 仅 ChatGPT Plus/Pro OAuth | 主额度的 5 小时、7 天窗口，以及接口返回的额外模型额度 |
 | CLIProxyAPI | 取决于上游 | 代理 API Key 和服务端 `pi-bridge` | 只显示 `pi-bridge` 返回的账户和额度池 |
-| xAI / Grok | 仅状态 | OAuth | 账户身份，以及可用或消费限额状态 |
-| Google Vertex AI | 不支持 | API Key、ADC 或服务账号 | `Unsupported` |
-| Google Gemini API / AI Studio | 不支持 | API Key | 没有受支持的官方账户余额或额度接口 |
+
+其他原生服务商均不查询额度，显示不支持。CPA 可能展示 `pi-bridge` 返回的其他上游服务额度池，但这不代表插件对这些服务提供原生集成。
 
 ### 服务商数据如何处理
 
-原生服务商通过官方域名查询，并使用 Pi 已解析的认证信息。只有服务商返回重置时间时，插件才会显示倒计时。
+ChatGPT OAuth 使用官方 ChatGPT 域名查询，不使用普通 API Key。账户 ID 从当前解析的 OAuth token 获取，不再另读认证文件。额外模型额度在 `/usage` 详情中展示；简洁状态仍以主额度窗口为主。只有服务商返回重置时间时，插件才会显示倒计时。
 
 CLIProxyAPI 需要在服务端安装 [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge)。Pi Usage 使用普通代理 API Key，不会请求或保存 CLIProxyAPI Management Key。界面只展示桥接接口实际返回的账户和额度池。
 
 代理账户会按模型族和模型 ID 匹配，当前模型不能借用无关服务商的额度。共享额度池仍按一个池显示。例如，Antigravity 只返回一个共享池时，插件不会凭空拆成 5 小时和周额度。
-
-Google Vertex 的额度取决于项目、地区、模型、指标和 IAM 权限，无法用一个订阅式百分比准确表示，因此显示为不支持。
 
 ## 状态说明
 
@@ -140,10 +131,10 @@ Google Vertex 的额度取决于项目、地区、模型、指标和 IAM 权限�
 | --- | --- |
 | `Unauthorized` | Pi 没有解析到有效凭据，或服务商拒绝了凭据 |
 | `No active quota` | 认证成功，但账户没有可用套餐或额度 |
-| `Unsupported` | 暂无安全且受支持的余额或额度集成 |
+| `Unsupported` | 此服务商不在支持的额度集成范围内 |
 | `Bridge Not Found` | CLIProxyAPI 可以访问，但没有安装 `pi-bridge` |
 | `stale` | 本次刷新失败，当前显示的是上次成功获取的数据 |
-| `0%` 或零余额 | 服务商成功返回了真实的零值 |
+| `0%` | 服务商成功返回了真实的零额度 |
 
 ## 设置
 
@@ -178,7 +169,7 @@ pi update --extensions
 
 ## 隐私与安全
 
-Pi Usage 不使用浏览器 Cookie、遥测或云同步，也不会把凭据发送到第三方域名。原生服务商请求只会发往经过校验的官方域名，CLIProxyAPI 请求只会发往已配置的代理源站。
+Pi Usage 不使用浏览器 Cookie、遥测或云同步，也不会把凭据发送到第三方域名。ChatGPT 请求只会发往官方域名，CLIProxyAPI 请求只会发往已配置的代理源站。
 
 Skill 统计不会保存提示词、对话内容、工具输出或 Skill 文件内容。
 

@@ -26,10 +26,10 @@ function fixture() {
   return { controller, context, skillPath, globalEvents };
 }
 
-test("skill tracking counts a command and its subsequent entry read once per agent run", async () => {
+test("skill tracking counts an accepted expanded command and its entry read once per agent run", async () => {
   const { controller, context, skillPath, globalEvents } = fixture();
-  await controller.captureInput("/skill:pdf extract report.pdf", context);
-  await controller.beginRun();
+  controller.beginRun();
+  await controller.captureMessage(`<skill name="pdf" location="${skillPath}">\nPDF instructions\n</skill>`, context);
   controller.captureReadCall("read-1", skillPath, context);
   await controller.captureReadResult("read-1", false);
 
@@ -37,7 +37,7 @@ test("skill tracking counts a command and its subsequent entry read once per age
   assert.deepEqual(await controller.globalStats(), [{ skill: "pdf", uses: 1 }]);
 
   controller.finishRun();
-  await controller.beginRun();
+  controller.beginRun();
   controller.captureReadCall("read-2", skillPath, context);
   await controller.captureReadResult("read-2", false);
   assert.deepEqual(await controller.globalStats(), [{ skill: "pdf", uses: 2 }]);
@@ -45,11 +45,39 @@ test("skill tracking counts a command and its subsequent entry read once per age
 
 test("failed and foreign entry reads are not counted", async () => {
   const { controller, context, skillPath, globalEvents } = fixture();
-  await controller.beginRun();
+  controller.beginRun();
   controller.captureReadCall("failed", skillPath, context);
   await controller.captureReadResult("failed", true);
   controller.captureReadCall("foreign", resolve("somewhere", "SKILL.md"), context);
   await controller.captureReadResult("foreign", false);
+  assert.equal(globalEvents.length, 0);
+});
+
+test("unaccepted or cancelled skill commands do not increment usage", async () => {
+  const { controller, context, skillPath, globalEvents } = fixture();
+  const expanded = `<skill name="pdf" location="${skillPath}">\nPDF instructions\n</skill>`;
+  // A failed preflight or cancelled queue emits no user message_start.
+  await controller.captureMessage(expanded, context);
+  controller.beginRun();
+  await controller.captureMessage("ordinary next prompt", context);
+  assert.equal(globalEvents.length, 0);
+
+  // Submitting a queued skill while a run is active does not count until
+  // its expanded user message actually enters the agent.
+  assert.equal(globalEvents.length, 0);
+  await controller.captureMessage(expanded, context);
+  assert.equal(globalEvents.length, 1);
+  await controller.captureMessage(expanded, context);
+  assert.equal(globalEvents.length, 1);
+  controller.finishRun();
+});
+
+test("only discovered skills with matching entry paths count", async () => {
+  const { controller, context, globalEvents } = fixture();
+  controller.beginRun();
+  await controller.captureMessage('<skill name="pdf" location="/tmp/foreign/SKILL.md">\ntext\n</skill>', context);
+  await controller.captureMessage('<skill name="foreign" location="/tmp/foreign/SKILL.md">\ntext\n</skill>', context);
+  await controller.captureMessage('prefix <skill name="pdf" location="/tmp/foreign/SKILL.md">\ntext\n</skill>', context);
   assert.equal(globalEvents.length, 0);
 });
 

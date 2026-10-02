@@ -4,7 +4,7 @@ import type { UsageConfig } from "../../core/config.ts";
 export function chooseAdapter(target: ProviderTarget, adapters: UsageAdapter[], config: UsageConfig): UsageAdapter | undefined {
   const override = config.providerOverrides[target.providerId];
   if (override === "disabled") return undefined;
-  if (override) return adapters.find((adapter) => adapter.id === override);
+  if (override) return adapters.find((adapter) => adapter.id === override && adapter.canHandle(target));
   return adapters.find((adapter) => adapter.canHandle(target));
 }
 
@@ -43,10 +43,14 @@ export function friendlyGroupName(
   const gTokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
   const prov = (accountProvider ?? "").toLowerCase();
 
-  const isGemini = mTokens.includes("gemini") || gTokens.includes("gemini") || prov.includes("google") || prov.includes("gemini");
-  const isClaude = mTokens.includes("claude") || gTokens.includes("claude") || prov.includes("anthropic");
-  const isCodex = mTokens.includes("codex") || gTokens.includes("codex") || prov.includes("codex");
-  const isGpt = mTokens.includes("gpt") || mTokens.includes("openai") || prov.includes("openai");
+  // A deduplicated pool can name several families. The selected model wins;
+  // group/provider names are only a fallback when the model has no known family.
+  const modelFamily = mTokens.find((t) => ["gemini", "claude", "codex", "gpt", "openai", "deepseek", "kimi", "moonshot", "grok", "xai"].includes(t));
+  const fallback = !modelFamily;
+  const isGemini = modelFamily === "gemini" || (fallback && (gTokens.includes("gemini") || prov.includes("google") || prov.includes("gemini")));
+  const isClaude = modelFamily === "claude" || (fallback && (gTokens.includes("claude") || prov.includes("anthropic")));
+  const isCodex = modelFamily === "codex" || (fallback && (gTokens.includes("codex") || prov.includes("codex")));
+  const isGpt = modelFamily === "gpt" || modelFamily === "openai" || (fallback && prov.includes("openai"));
 
   if (isGemini) {
     // The active model is authoritative when a shared pool contains multiple tiers.
@@ -75,9 +79,10 @@ export function friendlyGroupName(
     return "Codex";
   }
 
-  if (mTokens.includes("deepseek") || gTokens.includes("deepseek")) return "DeepSeek";
-  if (mTokens.includes("kimi") || mTokens.includes("moonshot") || gTokens.includes("kimi")) return "Kimi";
-  if (mTokens.includes("grok") || mTokens.includes("xai") || gTokens.includes("grok")) return "Grok";
+  if (isGpt) return "GPT";
+  if (modelFamily === "deepseek" || (fallback && gTokens.includes("deepseek"))) return "DeepSeek";
+  if (modelFamily === "kimi" || modelFamily === "moonshot" || (fallback && gTokens.includes("kimi"))) return "Kimi";
+  if (modelFamily === "grok" || modelFamily === "xai" || (fallback && gTokens.includes("grok"))) return "Grok";
 
   return group.label || group.id || "Quota";
 }

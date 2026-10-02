@@ -6,7 +6,6 @@ import type { SkillDescriptor, SkillUsageEvent, SkillUsageStats } from "./types.
 export class SkillUsageController {
   private readonly catalog = new SkillCatalog();
   private readonly pendingReads = new Map<string, SkillDescriptor>();
-  private readonly queuedCommands = new Map<string, SkillDescriptor>();
   private readonly usedThisRun = new Set<string>();
   private readonly pi: Pick<ExtensionAPI, "getCommands">;
   private readonly writeGlobal: (event: SkillUsageEvent) => Promise<void>;
@@ -28,27 +27,22 @@ export class SkillUsageController {
     this.catalog.refresh(this.pi, cwd);
   }
 
-  async captureInput(text: string, ctx: ExtensionContext): Promise<void> {
+  async captureMessage(text: string, ctx: ExtensionContext): Promise<void> {
+    if (!this.runActive) return;
     this.refreshCatalog(ctx.cwd);
-    const skill = this.catalog.matchCommand(text);
-    if (!skill) return;
-    if (this.runActive) await this.recordUsage(skill.name);
-    else this.queuedCommands.set(skill.name, skill);
+    const skill = this.catalog.matchExpandedPrompt(text, ctx.cwd);
+    if (skill) await this.recordUsage(skill.name);
   }
 
-  async beginRun(): Promise<void> {
+  beginRun(): void {
     this.runActive = true;
     this.usedThisRun.clear();
-    const commands = [...this.queuedCommands.values()];
-    this.queuedCommands.clear();
-    for (const skill of commands) await this.recordUsage(skill.name);
   }
 
   finishRun(): void {
     this.runActive = false;
     this.usedThisRun.clear();
     this.pendingReads.clear();
-    this.queuedCommands.clear();
   }
 
   captureReadCall(toolCallId: string, path: string, ctx: ExtensionContext): void {
@@ -60,7 +54,7 @@ export class SkillUsageController {
   async captureReadResult(toolCallId: string, isError: boolean): Promise<void> {
     const skill = this.pendingReads.get(toolCallId);
     this.pendingReads.delete(toolCallId);
-    if (skill && !isError) await this.recordUsage(skill.name);
+    if (this.runActive && skill && !isError) await this.recordUsage(skill.name);
   }
 
   installedSkills(cwd: string): string[] {

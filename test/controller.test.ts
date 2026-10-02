@@ -7,8 +7,7 @@ import { DEFAULT_CONFIG } from "../src/core/config.ts";
 
 const fixture = async (name: string) => readFile(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
-test("controller.refreshAll correctly isolates model baseUrl and filters proxy accounts", async () => {
-  const deepseekBody = await fixture("deepseek-balance.json");
+test("controller.refreshAll only queries Codex OAuth and CPA, and filters proxy accounts", async () => {
   const bridgeBody = await fixture("pi-bridge-usage.json");
   const codexBody = await fixture("openai-codex-usage.json");
 
@@ -18,9 +17,6 @@ test("controller.refreshAll correctly isolates model baseUrl and filters proxy a
     const urlStr = String(input);
     requestedUrls.push(urlStr);
 
-    if (urlStr.includes("api.deepseek.com")) {
-      return new Response(deepseekBody, { status: 200, headers: { "content-type": "application/json" } });
-    }
     if (urlStr.includes("cpa.example.com")) {
       return new Response(bridgeBody, { status: 200, headers: { "content-type": "application/json" } });
     }
@@ -72,12 +68,10 @@ test("controller.refreshAll correctly isolates model baseUrl and filters proxy a
 
   const snapshots = await controller.refreshAll(mockContext, true);
 
-  // 1. Verify DeepSeek request: It MUST go to api.deepseek.com, NOT cpa.example.com!
-  assert.ok(requestedUrls.some((u) => u.startsWith("https://api.deepseek.com/user/balance")));
-  const dsSnapshot = snapshots.find((s) => s.displayName === "DeepSeek");
-  assert.ok(dsSnapshot);
-  assert.equal(dsSnapshot.state, "ok");
-  assert.equal(dsSnapshot.summary, "Balance ¥23.41");
+  // Unsupported providers are skipped entirely, including their network calls.
+  assert.equal(snapshots.length, 2);
+  assert.equal(snapshots.some((s) => s.sourceProviderId === "deepseek"), false);
+  assert.equal(requestedUrls.some((u) => u.includes("deepseek.com")), false);
 
   // 2. Verify MyCPA snapshot: The upstream Codex account must be pruned!
   const cpaSnapshot = snapshots.find((s) => s.displayName === "MyCPA");
@@ -97,7 +91,7 @@ test("controller.refreshAll correctly isolates model baseUrl and filters proxy a
   assert.equal(codexSnapshot.accounts[0]?.metrics.length, 2);
 });
 
-test("unsupported Google Vertex auth resolution never leaves the footer at Loading", async () => {
+test("unsupported providers never leave the footer at Loading", async () => {
   const controller = new ProviderUsageController(DEFAULT_CONFIG);
   const model = {
     id: "gemini-3.1-pro-preview",
@@ -187,6 +181,35 @@ test("controller.currentView shows both CPA Codex windows but does not invent a 
   const claude = controller.currentView({} as any, snapshot, { id: "ag-claude-opus-4-6-thinking", provider: "MyCPA" } as any);
   assert.match(claude?.summary ?? "", /^Claude/);
   assert.doesNotMatch(claude?.summary ?? "", /5h/);
+});
+
+test("CPA shared pool labels follow the selected model family and tier", () => {
+  const controller = new ProviderUsageController(DEFAULT_CONFIG);
+  const snapshot: UsageSnapshot = {
+    adapterId: "cliproxy-pi-bridge", sourceProviderId: "MyCPA", displayName: "MyCPA",
+    state: "ok", fetchedAt: new Date().toISOString(),
+    accounts: [{
+      id: "shared", provider: "antigravity", label: "Shared pool",
+      metrics: [{ kind: "quota-window", id: "shared", label: "Gemini / Claude / GPT", remainingFraction: 1 }],
+      rawGroups: [{
+        id: "shared", label: "Gemini / Claude / GPT Flash",
+        remainingFraction: 1,
+        models: [
+          { id: "claude-opus-4-6-thinking" }, { id: "claude-sonnet-4-6" },
+          { id: "gemini-3-flash" }, { id: "gpt-5" },
+        ],
+      }],
+    }],
+  };
+  for (const [modelId, label] of [
+    ["ag-claude-opus-4-6-thinking", "Claude Opus"],
+    ["ag-claude-sonnet-4-6", "Claude Sonnet"],
+    ["ag-gemini-3-flash", "Gemini Flash"],
+    ["proxy-gpt-5", "GPT"],
+  ]) {
+    const view = controller.currentView({} as any, snapshot, { id: modelId, provider: "MyCPA" } as any);
+    assert.match(view?.summary ?? "", new RegExp(`^${label} 100%`), modelId);
+  }
 });
 
 test("controller.currentView does not mismatch foreign quotas to unsupported or different-family models", async () => {

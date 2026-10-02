@@ -3,15 +3,8 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import type { UsageConfig } from "../../core/config.ts";
 import { UsageCache } from "../../core/cache.ts";
 import type { Metric, ProviderTarget, UsageAdapter, UsageSnapshot } from "../../core/types.ts";
-import { anthropicAdapter } from "./adapters/anthropic.ts";
 import { cliProxyBridgeAdapter } from "./adapters/cliproxy-pi-bridge.ts";
-import { deepSeekAdapter } from "./adapters/deepseek.ts";
-import { glmAdapter } from "./adapters/glm.ts";
 import { openAICodexAdapter } from "./adapters/openai-codex.ts";
-import { openCodeGoAdapter } from "./adapters/opencode-go.ts";
-import { openRouterAdapter } from "./adapters/openrouter.ts";
-import { xaiAdapter } from "./adapters/xai.ts";
-import { kimiCodingAdapter } from "./adapters/kimi-coding.ts";
 import { chooseAdapter, matchModelAcrossAccounts, isAccountCompatibleWithModel, tokenizeModelId } from "./matching.ts";
 import { relativeTime } from "../../ui/format.ts";
 import { safeError } from "../../core/security.ts";
@@ -21,7 +14,7 @@ export class ProviderUsageController {
   private adapters: UsageAdapter[];
 
   constructor(private config: UsageConfig, private fetchFn: typeof fetch = fetch) {
-    this.adapters = [deepSeekAdapter, openAICodexAdapter, xaiAdapter, anthropicAdapter, glmAdapter, openRouterAdapter, openCodeGoAdapter, kimiCodingAdapter, cliProxyBridgeAdapter];
+    this.adapters = [openAICodexAdapter, cliProxyBridgeAdapter];
   }
 
   setConfig(config: UsageConfig): void { this.config = config; }
@@ -63,16 +56,7 @@ export class ProviderUsageController {
   }
 
   private enabled(adapter: UsageAdapter): boolean {
-    if (adapter.id === "deepseek") return this.config.adapters.deepseek.enabled;
-    if (adapter.id === "cliproxy-pi-bridge") return this.config.adapters.cliproxyPiBridge.enabled;
-    if (adapter.id === "openai-codex") return this.config.adapters.openaiCodex.enabled;
-    if (adapter.id === "xai") return this.config.adapters.xai.enabled;
-    if (adapter.id === "anthropic") return this.config.adapters.anthropic.enabled;
-    if (adapter.id === "glm") return this.config.adapters.glm.enabled;
-    if (adapter.id === "openrouter") return this.config.adapters.openrouter.enabled;
-    if (adapter.id === "opencode-go") return this.config.adapters.opencodeGo.enabled;
-    if (adapter.id === "kimi-coding") return this.config.adapters.kimiCoding.enabled;
-    return true;
+    return adapter.id === "openai-codex" ? this.config.adapters.openaiCodex.enabled : this.config.adapters.cliproxyPiBridge.enabled;
   }
 
   async fetchTarget(target: ProviderTarget, force = false): Promise<UsageSnapshot> {
@@ -109,19 +93,7 @@ export class ProviderUsageController {
     }
 
     // 3. Known standard providers with configured auth
-    const knownProviders = [
-      "deepseek",
-      "openai-codex",
-      "xai",
-      "anthropic",
-      "zai-coding-cn",
-      "zai",
-      "glm",
-      "openrouter",
-      "opencode-go",
-      "opencode",
-      "kimi-coding",
-    ];
+    const knownProviders = ["openai-codex"];
     for (const id of knownProviders) {
       if (ctx.modelRegistry.getProviderAuthStatus(id).configured) {
         providerIds.add(id);
@@ -137,7 +109,8 @@ export class ProviderUsageController {
     }
 
     const targets = await Promise.all([...providerIds].map((id) => this.target(ctx, id)));
-    return Promise.all(targets.map((target) => this.fetchTarget(target, force)));
+    const supported = targets.filter((target) => chooseAdapter(target, this.adapters.filter((item) => this.enabled(item)), this.config));
+    return Promise.all(supported.map((target) => this.fetchTarget(target, force)));
   }
 
   /**

@@ -38,18 +38,8 @@ export function compactQuotaSummary(
 }
 
 export function metricText(metric: Metric): string {
-  switch (metric.kind) {
-    case "balance": {
-      const symbol = metric.currency === "CNY" || metric.currency === "RMB" ? "¥" : metric.currency === "USD" ? "$" : `${metric.currency} `;
-      return `${metric.label}: ${symbol}${metric.amount.toFixed(2)}${metric.detail ? ` · ${metric.detail}` : ""}`;
-    }
-    case "quota-window": {
-      const reset = relativeTime(metric.resetAt);
-      return `${metric.label} ${percentBar(metric.remainingFraction)} ${Math.round(metric.remainingFraction * 100)}% left${reset ? ` · ${reset}` : ""}`;
-    }
-    case "usage-limit": return `${metric.label}: ${metric.used}/${metric.limit} ${metric.unit}`;
-    case "status": return `${metric.label}: ${metric.value}`;
-  }
+  const reset = relativeTime(metric.resetAt);
+  return `${metric.label} ${percentBar(metric.remainingFraction)} ${Math.round(metric.remainingFraction * 100)}% left${reset ? ` · ${reset}` : ""}`;
 }
 
 export function compactSnapshot(snapshot?: UsageSnapshot): string {

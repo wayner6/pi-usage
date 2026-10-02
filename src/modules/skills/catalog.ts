@@ -41,9 +41,11 @@ export class SkillCatalog {
     return [...this.byCommand.values()].map((skill) => skill.name).sort((a, b) => a.localeCompare(b));
   }
 
-  matchCommand(text: string): SkillDescriptor | undefined {
-    const token = text.trimStart().match(/^\/(skill:[^\s]+)/)?.[1];
-    return token ? this.byCommand.get(token) : undefined;
+  matchExpandedPrompt(text: string, cwd: string): SkillDescriptor | undefined {
+    const match = /^<skill name="([^"\n]+)" location="([^"\n]+)">\r?\n/.exec(text);
+    if (!match) return undefined;
+    const skill = this.byCommand.get(`skill:${match[1]}`);
+    return skill?.name === this.byPath.get(normalizedPath(match[2]!, cwd))?.name ? skill : undefined;
   }
 
   matchRead(path: string, cwd: string): SkillDescriptor | undefined {

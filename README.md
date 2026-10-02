@@ -2,7 +2,7 @@
 
 # Pi Usage
 
-Provider balances, quota windows, reset times, and local Skill usage counts for [Pi](https://github.com/earendil-works/pi-mono) and [pi-web](https://github.com/agegr/pi-web).
+ChatGPT OAuth and CLIProxyAPI quota windows, reset times, and local Skill usage counts for [Pi](https://github.com/earendil-works/pi-mono) and [pi-web](https://github.com/agegr/pi-web).
 
 [中文文档](./README_zh.md) · [Report a bug](https://github.com/wayner6/pi-usage/issues)
 
@@ -23,7 +23,7 @@ It also provides one command for detailed provider data and Skill statistics:
 /usage skills
 ```
 
-The status follows the active model. If a provider does not expose a balance or quota endpoint, Pi Usage says so instead of inventing a number. Network errors, missing authentication, unsupported providers, exhausted plans, and a real zero balance remain separate states.
+The status follows the active model. Only ChatGPT OAuth (OpenAI Codex) and CLIProxyAPI with `pi-bridge` are queried. Other providers are unsupported. Network errors, missing authentication, unsupported providers, exhausted plans, and a real zero quota remain separate states.
 
 ## Screenshots
 
@@ -89,7 +89,7 @@ Pi Usage registers only the `/usage` command.
 
 | Command | What it does |
 | --- | --- |
-| `/usage` | Shows all configured providers and their balances, quotas, or current state |
+| `/usage` | Shows configured ChatGPT OAuth and CLIProxyAPI providers |
 | `/usage all` | Same as `/usage` |
 | `/usage current` | Shows data for the active model's provider |
 | `/usage refresh` | Bypasses the cache and refreshes the active provider |
@@ -101,7 +101,7 @@ Pi Usage registers only the `/usage` command.
 
 Pi does not emit a dedicated `skill_invoked` event. Pi Usage detects a Skill activation when either of these happens:
 
-1. You run `/skill:name`.
+1. An accepted `/skill:name` command enters an agent run (failed or cancelled submissions do not count).
 2. The model successfully reads the entry file of a Skill discovered by Pi.
 
 The same Skill is counted once per agent run, so a `/skill:name` command followed by a read of its `SKILL.md` adds one use, not two. Counts begin after Skill tracking is installed and enabled. Old sessions are not scanned.
@@ -112,27 +112,18 @@ The same Skill is counted once per agent run, so a `/skill:name` command followe
 
 | Provider | Level | Authentication | Displayed data |
 | --- | --- | --- | --- |
-| OpenAI Codex | Full quota | ChatGPT Plus/Pro OAuth | 5-hour and 7-day quota with reset times |
-| Anthropic Claude | Full or limited | Claude OAuth or API key | OAuth subscription windows; API keys show request/token rate-limit headroom |
-| DeepSeek | Balance | API key | Official balances by currency |
-| GLM / Zhipu BigModel | Full or limited | API key | Coding Plan 5-hour and 7-day quota; standard keys have no official balance query |
-| OpenRouter | Balance | OAuth-resolved key or API key | Account balance or key limit, plus usage |
-| OpenCode Go | Full quota | API key | Rolling 5-hour, weekly, and monthly windows |
-| Kimi Code | Quota or status | Kimi OAuth or Kimi Code API key | 5-hour and weekly quota, or `No active quota` |
+| OpenAI Codex | Full quota | ChatGPT Plus/Pro OAuth only | Main 5-hour and 7-day windows; additional model limits when returned |
 | CLIProxyAPI | Upstream-dependent | Proxy API key and server-side `pi-bridge` | Only accounts and pools returned by `pi-bridge` |
-| xAI / Grok | Status only | OAuth | Account identity and active or spending-limit state |
-| Google Vertex AI | Unsupported | API key, ADC, or service account | `Unsupported` |
-| Google Gemini API / AI Studio | Unsupported | API key | No supported official account balance or quota endpoint |
+
+All other native providers are unsupported and are not queried. CPA may display quota pools for upstream services returned by `pi-bridge`; this is not a native integration with those services.
 
 ### How provider data is handled
 
-Native providers are queried through their official origins using authentication resolved by Pi. Reset countdowns are shown only when the provider returns a reset timestamp.
+ChatGPT OAuth is queried at the official ChatGPT origin. API keys are not used for this integration. The account ID comes from the resolved OAuth token, not a separate auth file. Additional model limits appear in `/usage`; the compact status stays focused on the main windows. Reset countdowns are shown only when the provider returns a reset timestamp.
 
 For CLIProxyAPI, install [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) on the CLIProxyAPI server. Pi Usage uses the normal proxy API key and never requests or stores the CLIProxyAPI Management Key. It displays only the accounts and quota pools returned by the bridge.
 
 Proxy accounts are matched by model family and model ID. An unrelated model cannot reuse another provider's quota. Shared pools stay shared: Pi Usage does not turn one Antigravity pool into fictional 5-hour and weekly windows.
-
-Google Vertex quotas depend on the project, region, model, metric, and IAM permissions. They cannot be represented as one subscription-style percentage, so Vertex is reported as unsupported.
 
 ## States you may see
 
@@ -140,10 +131,10 @@ Google Vertex quotas depend on the project, region, model, metric, and IAM permi
 | --- | --- |
 | `Unauthorized` | Pi could not resolve valid credentials, or the provider rejected them |
 | `No active quota` | Authentication worked, but the account has no usable plan or credits |
-| `Unsupported` | No safe, supported balance or quota integration exists |
+| `Unsupported` | This provider is outside the supported quota integrations |
 | `Bridge Not Found` | CLIProxyAPI is reachable, but its `pi-bridge` endpoint is missing |
 | `stale` | A refresh failed and the last successful result is being shown |
-| `0%` or zero balance | The provider successfully reported a real zero value |
+| `0%` | The provider successfully reported a real zero quota |
 
 ## Settings
 
@@ -178,7 +169,7 @@ In pi-web, open **Settings > Plugins**, update Pi Usage, and reload the session.
 
 ## Privacy and security
 
-Pi Usage does not use browser cookies, telemetry, or cloud synchronization. It does not send credentials to third-party origins. Provider requests stay on validated official domains, while CLIProxyAPI requests stay on the configured proxy origin.
+Pi Usage does not use browser cookies, telemetry, or cloud synchronization. It does not send credentials to third-party origins. ChatGPT requests stay on its official origin, while CLIProxyAPI requests stay on the configured proxy origin.
 
 Skill counting does not store prompts, conversation text, tool output, or Skill contents.
 
