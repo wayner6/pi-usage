@@ -35,6 +35,19 @@ test("CPA multiple accounts never imply a selected route", () => {
   assert.equal(view(s, "claude-opus-test")?.summary, "Claude Opus · 5h 23% · 7d 17%");
 });
 
+test("CPA does not confuse Antigravity Claude with standalone Claude", () => {
+  const s = snapshot();
+  s.accounts.push({ id: "synthetic-native-claude", provider: "claude", label: "Claude", metrics: [], rawGroups: [
+    { id: "five_hour", label: "5h", modelGroup: "claude", window: "5h", remainingFraction: 0.84, source: "summary" },
+    { id: "seven_day_opus", label: "Opus 7d", modelGroup: "claude", window: "7d", remainingFraction: 0.61, source: "summary" },
+  ] });
+  assert.equal(view(s, "claude-opus-test")?.summary, "2 accounts · routing account unknown");
+  assert.equal(view(s, "gemini-pro-test")?.summary, "Gemini Pro · 5h 42% · 7d 31%");
+  s.accounts.shift();
+  assert.equal(view(s, "claude-opus-test")?.summary, "Claude Opus · 5h 84% · Opus 7d 61%");
+  assert.equal(view(s, "claude-sonnet-test")?.summary, "Claude Sonnet · 5h 84%");
+});
+
 test("CPA fallback stays model-specific and missing windows remain unavailable", () => {
   const s = snapshot([{ id: "claude-opus-test", label: "Quota (window unknown)", modelGroup: "claude-gpt", window: "", remainingFraction: 0.6, source: "fallback" }]);
   assert.match(view(s, "claude-opus-test")?.summary ?? "", /window unknown · 5h\/7d unavailable/);
@@ -70,6 +83,29 @@ test("CPA requests only the new endpoint, including 404, and never retries anoth
     }
     assert.deepEqual(paths, ["/v0/resource/plugins/pi-usage-cpa/usage"]);
   }
+});
+
+test("CPA keeps seven providers distinct, including provider-specific windows and unavailable data", async () => {
+  const entries: Array<[string, string, string, string, string]> = [
+    ["claude", "claude-opus-4", "5h", "five_hour", "Claude Opus · 5h 84%"],
+    ["codex", "gpt-5-codex", "7d", "code-secondary", "Codex · 7d 84%"],
+    ["kimi", "kimi-k2", "monthly", "monthly", "Kimi · Monthly 84%"],
+    ["xai", "grok-4", "7d", "billing-credits", "xAI · 7d 84%"],
+    ["devin", "devin-1", "daily", "daily", "Devin · Daily 84%"],
+    ["meta", "muse-code", "", "window", "Meta · Quota (window unknown) 84%"],
+  ];
+  for (const [provider, modelId, window, id, expected] of entries) {
+    const label = window === "" ? "Quota (window unknown)" : window === "daily" ? "Daily" : window === "monthly" ? "Monthly" : window;
+    const body = { schemaVersion: 1, accounts: [{ provider, authIndex: "synthetic-opaque", label: "Account", groups: [{ id, label, modelGroup: provider, window, remainingFraction: 0.84, source: "summary" }] }] };
+    const result = await piUsageCpaAdapter.fetch({ target: { providerId: "CPA", baseUrl: "https://cpa.example.com/v1", configuredModelIds: [modelId], auth: { auth: { apiKey: "synthetic-client" } } as any }, signal: AbortSignal.timeout(1000), force: false, fetchFn: async () => Response.json(body) });
+    assert.equal(result.state, "ok", provider);
+    assert.equal(view(result, modelId)?.summary, expected);
+    assert.equal(view(result, "gemini-test")?.summary, "No Quota · gemini-test");
+  }
+  const unavailable = { schemaVersion: 1, accounts: [{ provider: "xai", groups: [], error: "quota unavailable" }] };
+  const result = await piUsageCpaAdapter.fetch({ target: { providerId: "CPA", baseUrl: "https://cpa.example.com/v1", auth: { auth: { apiKey: "synthetic-client" } } as any }, signal: AbortSignal.timeout(1000), force: false, fetchFn: async () => Response.json(unavailable) });
+  assert.equal(result.accounts[0]?.metrics.length, 0);
+  assert.equal(view(result, "grok-test")?.summary, "No Quota · grok-test");
 });
 
 test("CPA rejects unrelated or legacy-shaped responses instead of inventing quota", async () => {

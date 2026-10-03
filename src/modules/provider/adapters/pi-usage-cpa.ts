@@ -2,6 +2,9 @@ import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts
 import { isUrlOnDomain, safeError, sameOriginFetch, cpaUsageUrl } from "../../../core/security.ts";
 import { isGroupRelevantToModels, type CpaGroup } from "../matching.ts";
 
+const CPA_PROVIDERS = new Set(["antigravity", "claude", "codex", "kimi", "xai", "devin", "meta"]);
+const CPA_GROUPS = new Set(["gemini", "claude-gpt", "claude", "codex", "kimi", "xai", "devin", "meta"]);
+
 const NATIVE_PROVIDER_IDS = new Set([
   "deepseek", "openai-codex", "xai", "anthropic", "glm", "zai", "zai-coding-cn",
   "kimi-coding", "kimi-code", "kimi", "moonshot-code", "zhipu", "bigmodel",
@@ -56,19 +59,21 @@ export const piUsageCpaAdapter: UsageAdapter = {
       if (!response.ok) throw new Error(`pi-usage-cpa returned HTTP ${response.status}`);
       const data = await response.json() as CpaUsage;
       if (data?.schemaVersion !== 1 || !Array.isArray(data.accounts) || data.accounts.some((account) =>
-        account?.provider !== "antigravity" || !Array.isArray(account.groups) ||
-        (!account.groups.some((group) => group?.source === "summary" || group?.source === "fallback") && !Array.isArray(account.missingWindows))
+        !CPA_PROVIDERS.has(account?.provider ?? "") || !Array.isArray(account.groups) ||
+        account.groups.some((group) => group?.modelGroup !== account.provider && !(account.provider === "antigravity" && ["gemini", "claude-gpt"].includes(group?.modelGroup ?? ""))) ||
+        (!account.groups.some((group) => group?.source === "summary" || group?.source === "fallback") && !Array.isArray(account.missingWindows) && !account.error && !account.disabled && !account.unavailable)
       )) return { adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId, state: "incompatible", fetchedAt, accounts: [], error: "Unsupported pi-usage-cpa response schema" };
       const accounts = data.accounts.map((account, index) => {
         const groups = (Array.isArray(account.groups) ? account.groups : [])
           .filter((g) => g && typeof g.id === "string" && typeof g.label === "string" &&
-            ((g.source === "summary" && (g.window === "5h" || g.window === "7d")) || (g.source === "fallback" && !g.window)) &&
-            (g.modelGroup === "gemini" || g.modelGroup === "claude-gpt") &&
+            ((g.source === "summary" && (!g.window || ["5h", "7d", "daily", "monthly"].includes(g.window))) || (g.source === "fallback" && !g.window && account.provider === "antigravity")) &&
+            CPA_GROUPS.has(g.modelGroup ?? "") &&
+            ((account.provider === "antigravity" && ["gemini", "claude-gpt"].includes(g.modelGroup)) || (account.provider !== "antigravity" && g.modelGroup === account.provider)) &&
             typeof g.remainingFraction === "number" && Number.isFinite(g.remainingFraction) && g.remainingFraction >= 0 && g.remainingFraction <= 1)
           .filter((g) => isGroupRelevantToModels(g, target.configuredModelIds));
         const metrics: Metric[] = groups.map((g) => ({ kind: "quota-window", id: g.id, label: g.label, remainingFraction: g.remainingFraction, ...(g.resetTime ? { resetAt: g.resetTime } : {}) }));
         return {
-          id: account.authIndex ?? `antigravity-${index}`, provider: "antigravity", label: account.label ?? `Antigravity ${index + 1}`,
+          id: account.authIndex ?? `${account.provider}-${index}`, provider: account.provider!, label: account.label ?? `${account.provider} ${index + 1}`,
           ...(account.disabled !== undefined ? { disabled: account.disabled } : {}),
           ...(account.unavailable !== undefined ? { unavailable: account.unavailable } : {}),
           ...(account.error ? { error: account.error } : {}),

@@ -6,7 +6,7 @@ import type { ProviderTarget, UsageAdapter, UsageSnapshot } from "../../core/typ
 import { piUsageCpaAdapter } from "./adapters/pi-usage-cpa.ts";
 import { openAICodexAdapter } from "./adapters/openai-codex.ts";
 import { anthropicOAuthAdapter, kimiCodingOAuthAdapter, openRouterOAuthAdapter } from "./adapters/native-oauth.ts";
-import { chooseAdapter, matchModelAcrossAccounts, isAccountCompatibleWithModel, modelLabel, modelGroup } from "./matching.ts";
+import { chooseAdapter, matchModelAcrossAccounts, isAccountCompatibleWithModel, modelLabel } from "./matching.ts";
 import { relativeTime } from "../../ui/format.ts";
 import { safeError } from "../../core/security.ts";
 
@@ -99,12 +99,19 @@ export class ProviderUsageController {
 
   currentView(ctx: ExtensionContext, snapshot?: UsageSnapshot, model: Model<Api> | undefined = ctx.model): UsageSnapshot | undefined {
     if (!snapshot || snapshot.adapterId !== "pi-usage-cpa" || (snapshot.state !== "ok" && snapshot.state !== "stale")) return snapshot;
-    if (!model?.id || !modelGroup(model.id)) return { ...snapshot, accounts: [], state: "empty", summary: `No Quota · ${model?.id ?? "no active model"}` };
+    if (!model?.id) return { ...snapshot, accounts: [], state: "empty", summary: "No Quota · no active model" };
     const eligible = snapshot.accounts.filter((a) => isAccountCompatibleWithModel(a, model.id));
     if (eligible.length > 1) return { ...snapshot, accounts: eligible, summary: `${eligible.length} accounts · routing account unknown` };
     const matched = matchModelAcrossAccounts(eligible, model.id);
     if (matched) {
       const label = modelLabel(model.id);
+      if (matched.account.provider !== "antigravity") {
+        const parts = matched.groups.map((g) => {
+          const reset = relativeTime(g.resetTime);
+          return `${g.label} ${Math.round(g.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}`;
+        });
+        return { ...snapshot, accounts: [matched.account], summary: `${label} · ${parts.join(" · ")}` };
+      }
       const windows = matched.groups.filter((group) => group.source === "summary" && (group.window === "5h" || group.window === "7d"));
       if (windows.length) {
         const parts = ["5h", "7d"].map((window) => {

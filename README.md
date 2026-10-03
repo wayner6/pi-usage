@@ -57,7 +57,7 @@ Codex · 5h 92% (resets in 2h) · 7d 85% (resets in 5d 3h)
 
 ## 安装
 
-可以从 npm 或 GitHub 安装。**当前仅支持 `pi-usage-cpa` 的版本在 GitHub（`0.5.0`）；npm 仍为旧版 `0.3.0`。**
+可以从 npm 或 GitHub 安装。**GitHub `0.6.0` 支持 `pi-usage-cpa` 七类额度；npm `latest` 仍为旧版 `0.3.0`，不支持此插件。**
 
 ### Pi 终端
 
@@ -116,15 +116,15 @@ Pi 暂时没有提供独立的 `skill_invoked` 事件。Pi Usage 会在以下两
 | Anthropic | OAuth 用量接口（未公开文档，可能限流） | Pi 的 Claude Pro/Max OAuth | 5 小时、7 天及实际返回的模型专属周额度 |
 | Kimi Code | OAuth 用量接口（未公开文档） | Pi `kimi-coding` OAuth | 7 天及实际返回的滚动 5 小时额度 |
 | OpenRouter | Key 级限额 | Pi OpenRouter OAuth（换取 API Key） | Key 消费上限及免费模型日请求额度（若存在）；**不是**账户余额或订阅额度 |
-| CLIProxyAPI | 取决于上游 | 代理 API Key 与服务端 `pi-usage-cpa` | 只显示插件返回的 Antigravity 账户和额度池 |
+| CLIProxyAPI | 取决于上游 | 代理 API Key 与服务端 `pi-usage-cpa` | GitHub 0.6.0 对 Antigravity、Claude、Codex、Kimi、xAI、Devin、Meta 逐账户展示真实可得额度；部分账号无可查询额度则显示不可用 |
 
-没有可用额度查询的服务商不会出现在状态栏或额度列表中。CPA 仅展示 `pi-usage-cpa` 返回的 Antigravity 额度组。
+没有可用额度查询的服务商不会凭空显示额度。CPA 只展示 `pi-usage-cpa` 返回、且能按当前模型匹配的额度组；需配合服务端 `pi-usage-cpa v0.2.0`；仅安装客户端或使用服务端 v0.1.0 都无法显示新增六类。
 
 ### 服务商数据如何处理
 
 原生 OAuth 凭据由 Pi 解析；额度请求只发送到各服务商固定的官方域名，且不跨域跟随重定向。ChatGPT OAuth 使用官方 ChatGPT 域名查询，不使用普通 API Key。账户 ID 从当前解析的 OAuth token 获取，不再另读认证文件。额外模型额度在 `/usage` 详情中展示；简洁状态仍以主额度窗口为主。只有服务商返回重置时间时，插件才会显示倒计时。
 
-对 CLIProxyAPI，需在服务端安装 [`pi-usage-cpa`](https://github.com/wayner6/pi-usage-cpa)。客户端**仅请求** `/v0/resource/plugins/pi-usage-cpa/usage`；若未安装则显示 `Bridge Not Found`，不回退其他插件。真实 Antigravity 双窗口和 CPA 部署尚未实测。Pi Usage 使用普通代理 API Key，不会请求或保存 CLIProxyAPI Management Key。界面只展示 `pi-usage-cpa` 返回的账户和额度池。
+对 CLIProxyAPI，需在服务端安装 [`pi-usage-cpa`](https://github.com/wayner6/pi-usage-cpa)。客户端**仅请求** `/v0/resource/plugins/pi-usage-cpa/usage`；若未安装则显示 `Bridge Not Found`，不回退其他插件。真实 CPA v8 上游响应和 Docker Compose 部署尚未实测，不保证每个账户均返回额度。Pi Usage 使用普通代理 API Key，不会请求或保存 CLIProxyAPI Management Key。界面只展示 `pi-usage-cpa` 返回的脱敏账户及明确额度窗口；xAI 健康探测、余额或未知窗口不能冒充 5h/7d。
 
 Antigravity 账户按模型族匹配；降级数据只匹配特定模型。当前模型不能借用无关额度，也不会把未知窗口的降级数据凭空拆成 5 小时和周额度。
 
