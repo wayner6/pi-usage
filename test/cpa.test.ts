@@ -22,7 +22,7 @@ const view = (s: UsageSnapshot, id: string) => controller.currentView({} as any,
 test("CPA explicit groups isolate Gemini and shared Claude/GPT windows", () => {
   assert.equal(view(snapshot(), "gemini-pro-test")?.summary, "Gemini Pro · 5h 42% · 7d 31%");
   assert.equal(view(snapshot(), "claude-opus-test")?.summary, "Claude Opus · 5h 23% · 7d 17%");
-  assert.equal(view(snapshot(), "gpt-test")?.summary, "GPT · 5h 23% · 7d 17%");
+  assert.equal(view(snapshot(), "gpt-oss-120b")?.summary, "GPT · 5h 23% · 7d 17%");
   assert.equal(view(snapshot(groups.slice(2, 3)), "claude-opus-test")?.summary, "Claude Opus · 5h 23% · 7d unavailable");
   assert.equal(matchModelAcrossAccounts(snapshot().accounts, "unrecognized-test"), undefined);
 });
@@ -33,6 +33,30 @@ test("CPA multiple accounts never imply a selected route", () => {
   assert.equal(view(s, "claude-opus-test")?.summary, "2 accounts · routing account unknown");
   s.accounts[1]!.disabled = true;
   assert.equal(view(s, "claude-opus-test")?.summary, "Claude Opus · 5h 23% · 7d 17%");
+});
+
+test("CPA distinguishes Codex GPT from Antigravity GPT-OSS without hiding real account ambiguity", () => {
+  const s = snapshot();
+  s.accounts[0]!.missingWindows = ["claude-gpt-5h", "claude-gpt-7d"];
+  const codex = { id: "synthetic-codex", provider: "codex", label: "Codex", metrics: [], rawGroups: [
+    { id: "code-primary", label: "5h", modelGroup: "codex" as const, window: "5h", remainingFraction: 0.69, source: "summary" as const },
+    { id: "code-secondary", label: "7d", modelGroup: "codex" as const, window: "7d", remainingFraction: 0.79, source: "summary" as const },
+  ] };
+  s.accounts.push(codex);
+  const gpt = view(s, "gpt-6.1-sol");
+  assert.equal(gpt?.summary, "GPT · 5h 69% · 7d 79%");
+  assert.deepEqual(gpt?.accounts.map((a) => a.id), ["synthetic-codex"]);
+  assert.equal(view(s, "gpt-oss-120b")?.summary, "GPT · 5h 23% · 7d 17%");
+  assert.equal(view(s, "ag-gpt-oss-120b")?.accounts[0]?.provider, "antigravity");
+  assert.equal(view(s, "claude-sonnet-5-5-high")?.accounts[0]?.provider, "antigravity");
+  const missing = snapshot([]);
+  missing.accounts[0]!.missingWindows = ["claude-gpt-5h", "claude-gpt-7d"];
+  assert.equal(view(missing, "gpt-6.1-sol")?.summary, "No Quota · gpt-6.1-sol");
+  assert.match(view(missing, "gpt-oss-120b")?.summary ?? "", /5h unavailable · 7d unavailable/);
+  s.accounts.push({ ...codex, id: "synthetic-second-codex" });
+  assert.equal(view(s, "gpt-6.1-sol")?.summary, "2 accounts · routing account unknown");
+  s.accounts.shift();
+  assert.equal(view(s, "gpt-oss-120b")?.summary, "No Quota · gpt-oss-120b");
 });
 
 test("CPA does not confuse Antigravity Claude with standalone Claude", () => {

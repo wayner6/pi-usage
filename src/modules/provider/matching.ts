@@ -23,7 +23,9 @@ type CpaAccount = { provider?: string; disabled?: boolean; unavailable?: boolean
 export function modelGroup(modelId: string): CpaGroup["modelGroup"] | undefined {
   const tokens = modelId.toLowerCase().split(/[^a-z0-9]+/);
   if (tokens.includes("gemini")) return "gemini";
-  if (tokens.includes("claude") || tokens.includes("gpt")) return "claude-gpt";
+  if (tokens.includes("claude")) return "claude-gpt";
+  // Antigravity's shared Claude/GPT pool covers GPT-OSS, not OpenAI GPT.
+  if (tokens.includes("gpt")) return tokens[tokens.indexOf("gpt") + 1] === "oss" ? "claude-gpt" : "codex";
   if (tokens.includes("codex")) return "codex";
   if (tokens.includes("kimi") || tokens.includes("moonshot")) return "kimi";
   if (tokens.includes("grok") || tokens.includes("xai")) return "xai";
@@ -39,7 +41,7 @@ export function groupMatches(group: CpaGroup, modelId: string, provider = "antig
     ? group.modelGroup === family
     : group.modelGroup === provider && (
       (provider === "claude" && tokens.includes("claude")) ||
-      (provider === "codex" && (tokens.includes("codex") || tokens.includes("gpt"))) ||
+      (provider === "codex" && family === "codex") ||
       (provider === "kimi" && (tokens.includes("kimi") || tokens.includes("moonshot"))) ||
       (provider === "xai" && (tokens.includes("grok") || tokens.includes("xai"))) ||
       (provider === "devin" && tokens.includes("devin")) ||

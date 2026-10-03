@@ -126,7 +126,7 @@ Native OAuth credentials are resolved by Pi; requests stay on each provider's fi
 
 For CLIProxyAPI, install [`pi-usage-cpa`](https://github.com/wayner6/pi-usage-cpa) on the server. The client requests **only** `/v0/resource/plugins/pi-usage-cpa/usage`; a missing plugin produces `Bridge Not Found`, without fallback to other plugins. Real CPA v8 upstream responses and Docker Compose deployment remain unverified; not every account is guaranteed to return quota. Pi Usage uses the normal proxy API key and never requests or stores the CLIProxyAPI Management Key. It displays only sanitized accounts and explicit quota windows returned by `pi-usage-cpa`; xAI health probes, balances, and unknown windows are never presented as 5h/7d quotas.
 
-Antigravity accounts are matched by model family; fallback observations remain model-specific. An unrelated model cannot borrow another model's quota, and an unlabelled fallback is never turned into fictional 5-hour or weekly windows.
+GitHub `0.6.1` distinguishes OpenAI GPT from GPT-OSS: Antigravity's shared quota matches Claude and GPT-OSS; other GPT models match Codex, without borrowing Antigravity quota based on the GPT keyword. Multiple matching accounts still show `routing account unknown`. Fallback observations remain model-specific and never become fictional 5-hour or weekly windows.
 
 ## States you may see
 

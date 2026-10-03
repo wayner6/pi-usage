@@ -126,7 +126,7 @@ Pi 暂时没有提供独立的 `skill_invoked` 事件。Pi Usage 会在以下两
 
 对 CLIProxyAPI，需在服务端安装 [`pi-usage-cpa`](https://github.com/wayner6/pi-usage-cpa)。客户端**仅请求** `/v0/resource/plugins/pi-usage-cpa/usage`；若未安装则显示 `Bridge Not Found`，不回退其他插件。真实 CPA v8 上游响应和 Docker Compose 部署尚未实测，不保证每个账户均返回额度。Pi Usage 使用普通代理 API Key，不会请求或保存 CLIProxyAPI Management Key。界面只展示 `pi-usage-cpa` 返回的脱敏账户及明确额度窗口；xAI 健康探测、余额或未知窗口不能冒充 5h/7d。
 
-Antigravity 账户按模型族匹配；降级数据只匹配特定模型。当前模型不能借用无关额度，也不会把未知窗口的降级数据凭空拆成 5 小时和周额度。
+GitHub `0.6.1` 区分 OpenAI GPT 与 GPT-OSS：Antigravity 的共享额度只匹配 Claude 和 GPT-OSS，其他 GPT 模型匹配 Codex，不因 `GPT` 关键词借用 Antigravity 额度。多个匹配账户仍显示 `routing account unknown`。降级数据只匹配特定模型，未知窗口不会拆成 5 小时和周额度。
 
 ## 状态说明
 
