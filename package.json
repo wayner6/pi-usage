@@ -1,6 +1,6 @@
 {
   "name": "@wayner6/pi-usage",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publishConfig": {
     "access": "public"
   },
@@ -20,6 +20,7 @@
     "index.ts",
     "src",
     "README.md",
+    "README_EN.md",
     "LICENSE",
     "SECURITY.md"
   ],

@@ -7,11 +7,11 @@ export interface UsageConfig {
   refresh: { intervalSeconds: number; timeoutSeconds: number };
   skills: { enabled: boolean };
   adapters: {
-    cliproxyPiBridge: { enabled: boolean };
+    piUsageCpa: { enabled: boolean };
     openaiCodex: { enabled: boolean };
     nativeOAuth: { enabled: boolean };
   };
-  providerOverrides: Record<string, "cliproxy-pi-bridge" | "openai-codex" | "anthropic" | "kimi-coding" | "openrouter" | "disabled">;
+  providerOverrides: Record<string, "pi-usage-cpa" | "openai-codex" | "anthropic" | "kimi-coding" | "openrouter" | "disabled">;
 }
 
 export const DEFAULT_CONFIG: UsageConfig = {
@@ -19,7 +19,7 @@ export const DEFAULT_CONFIG: UsageConfig = {
   refresh: { intervalSeconds: 120, timeoutSeconds: 10 },
   skills: { enabled: true },
   adapters: {
-    cliproxyPiBridge: { enabled: true },
+    piUsageCpa: { enabled: true },
     openaiCodex: { enabled: true },
     nativeOAuth: { enabled: true },
   },
@@ -41,7 +41,7 @@ function boolean(value: unknown, fallback: boolean): boolean {
 function providerOverrides(value: unknown): UsageConfig["providerOverrides"] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const allowed = new Set([
-    "cliproxy-pi-bridge", "openai-codex", "anthropic", "kimi-coding", "openrouter", "disabled",
+    "pi-usage-cpa", "openai-codex", "anthropic", "kimi-coding", "openrouter", "disabled",
   ]);
   return Object.fromEntries(
     Object.entries(value).filter((entry): entry is [string, UsageConfig["providerOverrides"][string]] =>
@@ -65,7 +65,7 @@ export async function loadConfig(): Promise<UsageConfig> {
       },
       skills: { enabled: boolean(parsed.skills?.enabled, DEFAULT_CONFIG.skills.enabled) },
       adapters: {
-        cliproxyPiBridge: { enabled: boolean(parsed.adapters?.cliproxyPiBridge?.enabled, DEFAULT_CONFIG.adapters.cliproxyPiBridge.enabled) },
+        piUsageCpa: { enabled: boolean(parsed.adapters?.piUsageCpa?.enabled, DEFAULT_CONFIG.adapters.piUsageCpa.enabled) },
         openaiCodex: { enabled: boolean(parsed.adapters?.openaiCodex?.enabled, DEFAULT_CONFIG.adapters.openaiCodex.enabled) },
         nativeOAuth: { enabled: boolean(parsed.adapters?.nativeOAuth?.enabled, DEFAULT_CONFIG.adapters.nativeOAuth.enabled) },
       },

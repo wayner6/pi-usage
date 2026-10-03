@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2030-01-01T00:00:00Z",
+  "cache": { "updatedAt": "2030-01-01T00:00:00Z", "stale": false, "ttlMs": 120000 },
+  "accounts": [
+    {
+      "provider": "antigravity",
+      "authIndex": "synthetic-opaque",
+      "label": "Antigravity 1",
+      "groups": [
+        { "id": "gemini-5h", "label": "5h", "modelGroup": "gemini", "window": "5h", "remainingFraction": 0.42, "source": "summary" },
+        { "id": "gemini-7d", "label": "7d", "modelGroup": "gemini", "window": "7d", "remainingFraction": 0.31, "source": "summary" },
+        { "id": "claude-gpt-5h", "label": "5h", "modelGroup": "claude-gpt", "window": "5h", "remainingFraction": 0.23, "source": "summary" },
+        { "id": "claude-gpt-7d", "label": "7d", "modelGroup": "claude-gpt", "window": "7d", "remainingFraction": 0.17, "source": "summary" }
+      ]
+    }
+  ]
+}

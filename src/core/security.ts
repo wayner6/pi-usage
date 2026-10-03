@@ -8,9 +8,9 @@ export function isUrlOnDomain(value: string, domain: string): boolean {
   }
 }
 
-export function bridgeUsageUrl(baseUrl: string, force = false): URL {
+export function cpaUsageUrl(baseUrl: string, force = false): URL {
   const base = new URL(baseUrl);
-  const result = new URL("/v0/resource/plugins/pi-bridge/usage", base.origin);
+  const result = new URL("/v0/resource/plugins/pi-usage-cpa/usage", base.origin);
   if (force) result.searchParams.set("refresh", "1");
   return result;
 }

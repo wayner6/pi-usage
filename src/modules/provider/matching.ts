@@ -8,556 +8,60 @@ export function chooseAdapter(target: ProviderTarget, adapters: UsageAdapter[], 
   return adapters.find((adapter) => adapter.canHandle(target));
 }
 
-export interface MatchedQuotaItem {
+export type CpaGroup = {
+  id: string;
   label: string;
-  remainingFraction: number;
-  resetAt?: string;
-}
-
-export interface MatchedGroupQuota {
-  label: string;
-  remainingFraction: number;
-  resetAt?: string;
-  matchedModelId?: string;
-  accountProvider?: string;
-  /**
-   * If the model specifically matches multiple distinct time windows (e.g. 5h and 7d windows for Codex),
-   * they are gathered here.
-   */
-  multiWindows?: MatchedQuotaItem[];
-  missingWindows?: string[];
-}
-
-export function tokenizeModelId(id: string): string[] {
-  return id
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter(Boolean);
-}
-
-export function friendlyGroupName(
-  group: { id?: string; label?: string },
-  modelId?: string,
-  accountProvider?: string,
-): string {
-  const mTokens = tokenizeModelId(modelId ?? "");
-  const gTokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
-  const prov = (accountProvider ?? "").toLowerCase();
-
-  // A deduplicated pool can name several families. The selected model wins;
-  // group/provider names are only a fallback when the model has no known family.
-  const modelFamily = mTokens.find((t) => ["gemini", "claude", "codex", "gpt", "openai", "deepseek", "kimi", "moonshot", "grok", "xai"].includes(t));
-  const fallback = !modelFamily;
-  const isGemini = modelFamily === "gemini" || (fallback && (gTokens.includes("gemini") || prov.includes("google") || prov.includes("gemini")));
-  const isClaude = modelFamily === "claude" || (fallback && (gTokens.includes("claude") || prov.includes("anthropic")));
-  const isCodex = modelFamily === "codex" || (fallback && (gTokens.includes("codex") || prov.includes("codex")));
-  const isGpt = modelFamily === "gpt" || modelFamily === "openai" || (fallback && prov.includes("openai"));
-
-  if (isGemini) {
-    // The active model is authoritative when a shared pool contains multiple tiers.
-    if (mTokens.includes("flash")) return "Gemini Flash";
-    if (mTokens.includes("pro")) return "Gemini Pro";
-    if (gTokens.includes("flash")) return "Gemini Flash";
-    if (gTokens.includes("pro")) return "Gemini Pro";
-    return "Gemini";
-  }
-
-  if (isClaude) {
-    // Deduplicated shared pools may contain Opus and Sonnet together. Prefer
-    // the selected model's family before deriving a name from the pool label.
-    if (mTokens.includes("opus")) return "Claude Opus";
-    if (mTokens.includes("sonnet")) return "Claude Sonnet";
-    if (mTokens.includes("haiku")) return "Claude Haiku";
-    if (gTokens.includes("opus") || (gTokens.includes("thinking") && !gTokens.includes("flash"))) return "Claude Opus";
-    if (gTokens.includes("sonnet") || gTokens.includes("other")) return "Claude Sonnet";
-    if (gTokens.includes("haiku")) return "Claude Haiku";
-    return "Claude";
-  }
-
-  if (isCodex || (isGpt && (gTokens.includes("5h") || gTokens.includes("primary") || gTokens.includes("7d") || gTokens.includes("secondary")))) {
-    if (gTokens.includes("5h") || gTokens.includes("primary")) return "Codex 5h";
-    if (gTokens.includes("7d") || gTokens.includes("secondary") || gTokens.includes("1w")) return "Codex 7d";
-    return "Codex";
-  }
-
-  if (isGpt) return "GPT";
-  if (modelFamily === "deepseek" || (fallback && gTokens.includes("deepseek"))) return "DeepSeek";
-  if (modelFamily === "kimi" || modelFamily === "moonshot" || (fallback && gTokens.includes("kimi"))) return "Kimi";
-  if (modelFamily === "grok" || modelFamily === "xai" || (fallback && gTokens.includes("grok"))) return "Grok";
-
-  return group.label || group.id || "Quota";
-}
-
-export type RawBridgeGroup = {
-  modelGroup?: string;
+  modelGroup: "gemini" | "claude-gpt";
   window?: string;
-  source?: string;
-  id?: string;
-  label?: string;
-  remainingFraction?: number;
+  source: "summary" | "fallback";
+  remainingFraction: number;
   resetTime?: string;
-  models?: Array<{ id?: string; displayName?: string; remainingFraction?: number; resetTime?: string }>;
 };
 
-export type RawBridgeAccount = {
+type CpaAccount = {
   provider?: string;
-  label?: string;
   disabled?: boolean;
   unavailable?: boolean;
+  missingWindows?: string[];
   rawGroups?: unknown;
 };
 
-export function explicitGroupMatches(group: RawBridgeGroup, modelId: string): boolean {
-  const tokens = tokenizeModelId(modelId);
-  const family = tokens.includes("gemini") ? "gemini" : tokens.some((t) => ["claude", "gpt"].includes(t)) ? "claude-gpt" : undefined;
-  if (group.modelGroup !== family || !family) return false;
-  // Legacy per-model fallback does not establish a shared model-family pool.
-  if (group.source === "fallback") return modelId.toLowerCase().replace(/^ag-/, "") === group.id?.toLowerCase();
-  return true;
-}
-
-function isTemporalWindow(group: RawBridgeGroup): boolean {
-  const tokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
-  return tokens.some((token) => ["5h", "7d", "1w", "weekly", "week", "primary", "secondary"].includes(token));
-}
-
-function isCodexTarget(modelId: string, providerId?: string): boolean {
-  const tokens = tokenizeModelId(`${modelId} ${providerId ?? ""}`);
-  return tokens.some((token) => ["codex", "gpt", "openai"].includes(token));
-}
-
-export function matchModelAcrossAccounts<T extends RawBridgeAccount>(
-  accounts: T[],
-  activeModelId?: string,
-  activeProviderId?: string,
-): { account: T; quota: MatchedGroupQuota } | undefined {
-  if (!accounts.length) return undefined;
-  const targetId = (activeModelId ?? "").trim().toLowerCase();
-  const targetTokens = tokenizeModelId(targetId);
-
-  interface Candidate {
-    account: T;
-    group: RawBridgeGroup;
-    score: number;
-    matchedModelId?: string | undefined;
-    isTimeWindow?: boolean;
-  }
-
-  const candidates: Candidate[] = [];
-
-  for (const account of accounts) {
-    if (account.disabled || account.unavailable) continue;
-    const groups = Array.isArray(account.rawGroups) ? (account.rawGroups as RawBridgeGroup[]) : [];
-    for (const group of groups) {
-      if (typeof group.remainingFraction !== "number") continue;
-
-      if (group.modelGroup && !explicitGroupMatches(group, targetId)) continue;
-      const groupModels = group.models ?? [];
-      let bestScore = group.modelGroup && explicitGroupMatches(group, targetId) ? 100 : 0;
-      let matchedModelId: string | undefined;
-
-      for (const m of groupModels) {
-        const mid = (m.id ?? "").trim().toLowerCase();
-        if (!mid) continue;
-
-        if (mid === targetId) {
-          bestScore = Math.max(bestScore, 100);
-          matchedModelId = mid;
-          break;
-        }
-
-        if (targetId && (targetId.includes(mid) || mid.includes(targetId))) {
-          const score = 80 + Math.min(10, Math.floor((Math.min(mid.length, targetId.length) / Math.max(mid.length, targetId.length)) * 10));
-          if (score > bestScore) {
-            bestScore = score;
-            matchedModelId = mid;
-          }
-        }
-
-        const mTokens = tokenizeModelId(mid);
-        const overlap = mTokens.filter((t) => targetTokens.includes(t));
-        if (overlap.length >= 2) {
-          const score = 50 + overlap.length * 10;
-          if (score > bestScore) {
-            bestScore = score;
-            matchedModelId = mid;
-          }
-        }
-      }
-
-      const gTokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
-      const isTimeWindow = isTemporalWindow(group);
-
-      if (bestScore < 60) {
-        const groupOverlap = gTokens.filter((t) => targetTokens.includes(t));
-        const provTokens = tokenizeModelId(account.provider ?? "");
-        const provOverlap = provTokens.filter((t) => targetTokens.includes(t));
-
-        if (groupOverlap.length > 0 || provOverlap.length > 0) {
-          const score = 25 + groupOverlap.length * 15 + provOverlap.length * 15;
-          if (score > bestScore) {
-            bestScore = score;
-          }
-        }
-      }
-
-      // Codex bridge accounts expose account-wide 5h/7d windows whose model
-      // entries are named "primary-window"/"secondary-window". Match these by
-      // account family because they cannot match a concrete model ID directly.
-      if (
-        bestScore === 0 &&
-        isTimeWindow &&
-        (account.provider ?? "").toLowerCase().includes("codex") &&
-        isCodexTarget(targetId, activeProviderId)
-      ) {
-        bestScore = 65;
-      }
-
-      if (bestScore > 0) {
-        candidates.push({
-          account,
-          group,
-          score: bestScore,
-          isTimeWindow,
-          ...(matchedModelId ? { matchedModelId } : {}),
-        });
-      }
-    }
-  }
-
-  candidates.sort((a, b) => b.score - a.score);
-
-  const winner = candidates[0];
-  if (winner && winner.score >= 25) {
-    const matchedAccount = winner.account;
-
-    // Check if this matched account specifically has multiple time-window quotas (like 5h and 7d for Codex)
-    const groups = Array.isArray(matchedAccount.rawGroups) ? (matchedAccount.rawGroups as RawBridgeGroup[]) : [];
-    const timeWindowGroups = groups.filter((g) =>
-      typeof g.remainingFraction === "number" && isTemporalWindow(g) &&
-      (!winner.group.modelGroup || g.modelGroup === winner.group.modelGroup)
-    );
-
-    let multiWindows: MatchedQuotaItem[] | undefined;
-    if (winner.isTimeWindow && (timeWindowGroups.length > 1 || winner.group.modelGroup)) {
-      multiWindows = timeWindowGroups.map((g) => ({
-        label: g.window ?? friendlyGroupName(g, activeModelId, matchedAccount.provider),
-        remainingFraction: g.remainingFraction!,
-        ...(g.resetTime ? { resetAt: g.resetTime } : {}),
-      }));
-    }
-
-    return {
-      account: matchedAccount,
-      quota: {
-        label: friendlyGroupName(winner.group.modelGroup ? {} : winner.group, activeModelId, winner.account.provider),
-        remainingFraction: winner.group.remainingFraction!,
-        ...(winner.group.resetTime ? { resetAt: winner.group.resetTime } : {}),
-        ...(winner.matchedModelId ? { matchedModelId: winner.matchedModelId } : {}),
-        ...(winner.account.provider ? { accountProvider: winner.account.provider } : {}),
-        ...(multiWindows ? { multiWindows } : {}),
-        ...(winner.group.modelGroup ? { missingWindows: ["5h", "7d"].filter((w) => !timeWindowGroups.some((g) => g.window === w)) } : {}),
-      },
-    };
-  }
-
+export function modelGroup(modelId: string): CpaGroup["modelGroup"] | undefined {
+  const tokens = modelId.toLowerCase().split(/[^a-z0-9]+/);
+  if (tokens.includes("gemini")) return "gemini";
+  if (tokens.includes("claude") || tokens.includes("gpt")) return "claude-gpt";
   return undefined;
 }
 
-/**
- * Determines whether a proxy account (e.g. from pi-bridge) is relevant to the models
- * actually configured by the user for this provider in Pi.
- * If configuredModelIds is empty or omitted, all accounts are considered relevant.
- */
-export function isAccountRelevantToModels(
-  account: { provider?: string; rawGroups?: unknown },
-  configuredModelIds?: string[],
-): boolean {
-  if (!configuredModelIds || configuredModelIds.length === 0) return true;
-
-  const targetTokens = new Set(configuredModelIds.flatMap(tokenizeModelId));
-  const groups = Array.isArray(account.rawGroups) ? (account.rawGroups as RawBridgeGroup[]) : [];
-  const provTokens = tokenizeModelId(account.provider ?? "");
-
-  // 1. Direct provider match or overlap with configured model tokens
-  // E.g. account.provider === "codex" vs models having "codex", or "antigravity" vs "gemini"/"claude"
-  const provNormalized = (account.provider ?? "").toLowerCase();
-  for (const mid of configuredModelIds) {
-    const mLower = mid.toLowerCase();
-    if (provNormalized && (mLower.includes(provNormalized) || provNormalized.includes(mLower))) {
-      return true;
-    }
-  }
-
-  // Check token intersection with account provider
-  if (provTokens.some((t) => targetTokens.has(t))) return true;
-
-  // Codex proxy accounts use generic window names rather than model IDs.
-  if (provNormalized.includes("codex") && [...targetTokens].some((t) => ["codex", "gpt", "openai"].includes(t))) {
-    return true;
-  }
-
-  // 2. Check groups and their inner models
-  const modelKeywords = [
-    "claude", "gemini", "codex", "gpt", "openai", "deepseek", "kimi", "moonshot", "grok", "xai",
-    "thinking", "flash", "pro", "opus", "sonnet", "haiku", "turbo", "mini", "reasoning", "antigravity",
-  ];
-  for (const group of groups) {
-    const gTokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
-    const gOverlap = gTokens.filter((t) => targetTokens.has(t));
-    if (gOverlap.some((t) => modelKeywords.includes(t)) || gOverlap.length >= 2) return true;
-
-    for (const m of group.models ?? []) {
-      const mid = (m.id ?? "").trim().toLowerCase();
-      if (!mid) continue;
-
-      for (const targetId of configuredModelIds) {
-        const tid = targetId.trim().toLowerCase();
-        if (mid === tid || tid.includes(mid) || mid.includes(tid)) return true;
-
-        const mTokens = tokenizeModelId(mid);
-        const overlap = mTokens.filter((t) => targetTokens.has(t));
-        if (overlap.length >= 2 || overlap.some((t) => modelKeywords.includes(t))) {
-          return true;
-        }
-      }
-    }
-  }
-
-  // 3. Provider abbreviation match (e.g. "ag-" models vs "antigravity" provider)
-  if (provNormalized === "antigravity" && configuredModelIds.some((id) => id.toLowerCase().startsWith("ag-"))) {
-    return true;
-  }
-
-  return false;
+export function groupMatches(group: CpaGroup, modelId: string): boolean {
+  if (group.modelGroup !== modelGroup(modelId)) return false;
+  // Fallback is a model-specific observation, not a shared model-family pool.
+  return group.source !== "fallback" || modelId.toLowerCase().replace(/^ag-/, "") === group.id.toLowerCase();
 }
 
-/**
- * Determines whether a specific group in a proxy account is relevant to
- * the user's configured models.
- */
-export function isGroupRelevantToModels(
-  group: RawBridgeGroup,
-  configuredModelIds?: string[],
-): boolean {
-  if (!configuredModelIds || configuredModelIds.length === 0) return true;
-  if (group.modelGroup) return configuredModelIds.some((id) => explicitGroupMatches(group, id));
-
-  const targetTokens = new Set(configuredModelIds.flatMap(tokenizeModelId));
-
-  // Preserve model-independent Codex rolling/weekly windows. Account-level
-  // filtering later decides whether a Codex account is actually relevant.
-  if (isTemporalWindow(group) && [...targetTokens].some((t) => ["codex", "gpt", "openai"].includes(t))) {
-    return true;
-  }
-
-  const modelKeywords = [
-    "claude", "gemini", "codex", "gpt", "openai", "deepseek", "kimi", "moonshot", "grok", "xai",
-    "thinking", "flash", "pro", "opus", "sonnet", "haiku", "turbo", "mini", "reasoning",
-  ];
-
-  // Distinct tier tokens that shouldn't cross-match (e.g. 'pro' vs 'flash')
-  const tierTokens = ["pro", "flash", "thinking", "opus", "sonnet", "haiku"];
-
-  // 1. Check models explicitly listed inside the group
-  for (const m of group.models ?? []) {
-    const mid = (m.id ?? "").trim().toLowerCase();
-    if (!mid) continue;
-
-    for (const targetId of configuredModelIds) {
-      const tid = targetId.trim().toLowerCase();
-      if (mid === tid || tid.includes(mid) || mid.includes(tid)) return true;
-
-      const mTokens = tokenizeModelId(mid);
-      const overlap = mTokens.filter((t) => targetTokens.has(t));
-
-      // Guard: If group model has 'pro' but target only has 'flash', skip unless other strong overlap
-      const mHasPro = mTokens.includes("pro");
-      const tHasPro = tokenizeModelId(tid).includes("pro");
-      if (mHasPro !== tHasPro && (mTokens.includes("flash") || tokenizeModelId(tid).includes("flash"))) {
-        continue;
-      }
-
-      if (overlap.length >= 2 || overlap.some((t) => modelKeywords.includes(t) && !tierTokens.includes(t))) {
-        return true;
-      }
-    }
-  }
-
-  // 2. Check group label and id
-  const gTokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
-
-  // Distinct tier check: if group says 'pro' but user configured models don't have 'pro', reject
-  for (const tier of tierTokens) {
-    if (gTokens.includes(tier)) {
-      if (targetTokens.has(tier)) return true;
-      // Group has this tier keyword, but user configured models don't
-      return false;
-    }
-  }
-
-  // General model token overlap
-  const gOverlap = gTokens.filter((t) => targetTokens.has(t));
-  return gOverlap.length >= 2 || gOverlap.some((t) => modelKeywords.includes(t));
+export function isGroupRelevantToModels(group: CpaGroup, configuredModelIds?: string[]): boolean {
+  return !configuredModelIds?.length || configuredModelIds.some((id) => groupMatches(group, id));
 }
 
-/**
- * Resolves a friendly, high-level group label based on the models contained
- * inside this quota group.
- * E.g., if a group contains 'gemini-2.5-pro' and 'gemini-3.1-pro', label it "Gemini".
- * If it contains 'claude-opus-4-6-thinking', 'claude-sonnet-4-6', and 'gpt-oss-120b-medium',
- * label it "Claude / GPT".
- */
-export function resolveGroupFamilyLabel(group: RawBridgeGroup): string {
-  const models = group.models ?? [];
-  const families = new Set<string>();
-
-  for (const m of models) {
-    const text = `${m.id ?? ""} ${m.displayName ?? ""}`.toLowerCase();
-    if (text.includes("gemini")) families.add("Gemini");
-    else if (text.includes("claude")) families.add("Claude");
-    else if (text.includes("gpt") || text.includes("openai")) families.add("GPT");
-    else if (text.includes("codex")) families.add("Codex");
-    else if (text.includes("deepseek")) families.add("DeepSeek");
-    else if (text.includes("kimi") || text.includes("moonshot")) families.add("Kimi");
-    else if (text.includes("grok") || text.includes("xai")) families.add("Grok");
-    else if (text.includes("glm") || text.includes("zhipu")) families.add("GLM");
-  }
-
-  // Also check the group id and label if models didn't provide family clues
-  const gText = `${group.id ?? ""} ${group.label ?? ""}`.toLowerCase();
-  if (gText.includes("gemini")) families.add("Gemini");
-  if (gText.includes("claude")) families.add("Claude");
-  if (gText.includes("gpt")) families.add("GPT");
-  if (gText.includes("codex")) families.add("Codex");
-  if (gText.includes("pro") || gText.includes("flash")) {
-    if (!families.has("Claude") && !families.has("GPT") && !families.has("Codex")) {
-      families.add("Gemini");
-    }
-  }
-  if (gText.includes("thinking") || gText.includes("other")) {
-    if (!families.has("Gemini")) {
-      families.add("Claude");
-    }
-  }
-
-  if (families.size > 0) {
-    const order = ["Gemini", "Claude", "GPT", "Codex", "DeepSeek", "Kimi", "Grok", "GLM"];
-    const sorted = order.filter((f) => families.has(f));
-    return sorted.join(" / ");
-  }
-
-  return group.label || group.id || "Quota";
+export function isAccountCompatibleWithModel(account: CpaAccount, modelId: string): boolean {
+  const family = modelGroup(modelId);
+  if (account.provider !== "antigravity" || !family || account.disabled || account.unavailable) return false;
+  const groups = Array.isArray(account.rawGroups) ? account.rawGroups as CpaGroup[] : [];
+  return groups.some((group) => groupMatches(group, modelId)) || account.missingWindows?.some((window) => typeof window === "string" && window.startsWith(`${family}-`)) === true;
 }
 
-/**
- * Deduplicates groups in the same account that share the exact same quota pool
- * (identical remaining fraction and identical reset time),
- * and computes clean, friendly family labels (e.g. "Gemini", "Claude / GPT").
- */
-export function deduplicateSharedQuotaGroups(groups: RawBridgeGroup[]): RawBridgeGroup[] {
-  const result: RawBridgeGroup[] = [];
-  const visited = new Set<number>();
-
-  for (let i = 0; i < groups.length; i++) {
-    if (visited.has(i)) continue;
-    const current = groups[i]!;
-    const matchingIndices: number[] = [i];
-
-    for (let j = i + 1; j < groups.length; j++) {
-      if (visited.has(j)) continue;
-      const other = groups[j]!;
-
-      // Compare remainingFraction and resetTime
-      if (
-        !current.modelGroup && !other.modelGroup &&
-        typeof current.remainingFraction === "number" &&
-        typeof other.remainingFraction === "number" &&
-        Math.abs(current.remainingFraction - other.remainingFraction) < 0.0001 &&
-        Boolean(current.resetTime) &&
-        current.resetTime === other.resetTime &&
-        !(isTemporalWindow(current) && isTemporalWindow(other) && current.id !== other.id)
-      ) {
-        matchingIndices.push(j);
-      }
-    }
-
-    if (matchingIndices.length === 1) {
-      result.push({
-        ...current,
-        label: resolveGroupFamilyLabel(current),
-      });
-      visited.add(i);
-    } else {
-      const matchedGroups = matchingIndices.map((idx) => groups[idx]!);
-      for (const idx of matchingIndices) visited.add(idx);
-
-      const allModels = matchedGroups.flatMap((g) => g.models ?? []);
-      const mergedGroup: RawBridgeGroup = {
-        ...current,
-        id: matchedGroups.map((g) => g.id).filter(Boolean).join("+"),
-        models: allModels,
-      };
-
-      result.push({
-        ...mergedGroup,
-        label: resolveGroupFamilyLabel(mergedGroup),
-      });
-    }
+export function matchModelAcrossAccounts<T extends CpaAccount>(accounts: T[], modelId: string): { account: T; groups: CpaGroup[] } | undefined {
+  for (const account of accounts) {
+    if (!isAccountCompatibleWithModel(account, modelId)) continue;
+    const groups = (Array.isArray(account.rawGroups) ? account.rawGroups as CpaGroup[] : []).filter((group) => groupMatches(group, modelId));
+    if (groups.length) return { account, groups };
   }
-
-  return result;
+  return undefined;
 }
 
-
-
-const MODEL_FAMILIES: string[][] = [
-  ["claude", "anthropic"],
-  ["gemini", "google"],
-  ["codex", "gpt", "openai"],
-  ["kimi", "moonshot"],
-  ["deepseek"],
-  ["grok", "xai"],
-  ["glm", "zhipu"],
-  ["minimax"],
-  ["qwen", "alibaba"],
-];
-
-/**
- * Checks whether an upstream proxy account is compatible with a given active model.
- * Prevents models of one family (e.g. Kimi) from blindly matching or falling back
- * to accounts of an entirely different family (e.g. Claude/Gemini in Antigravity).
- */
-export function isAccountCompatibleWithModel(
-  account: { provider?: string; label?: string; rawGroups?: unknown },
-  modelId: string,
-): boolean {
-  const mTokens = tokenizeModelId(modelId);
-  const provNormalized = (account.provider ?? "").toLowerCase();
-  const provTokens = tokenizeModelId(provNormalized);
-
-  // 1. Direct name match
-  if (provNormalized && (modelId.toLowerCase().includes(provNormalized) || provTokens.some((t) => mTokens.includes(t)))) {
-    return true;
-  }
-
-  // 2. Specific proxy provider abbreviations (e.g. "ag-" prefix with "antigravity")
-  if (provNormalized === "antigravity" && modelId.toLowerCase().startsWith("ag-")) {
-    return true;
-  }
-
-  // 3. Known model family matching
-  const modelFamilies = MODEL_FAMILIES.filter((fam) => fam.some((k) => mTokens.includes(k)));
-  if (modelFamilies.length > 0) {
-    const rawGroups = Array.isArray(account.rawGroups) ? (account.rawGroups as RawBridgeGroup[]) : [];
-    const groupText = rawGroups
-      .map((g) => `${g.id ?? ""} ${g.label ?? ""} ${(g.models ?? []).map((m) => `${m.id ?? ""} ${m.displayName ?? ""}`).join(" ")}`)
-      .join(" ");
-    const accountText = `${account.provider ?? ""} ${account.label ?? ""} ${groupText}`.toLowerCase();
-    const accountTokens = tokenizeModelId(accountText);
-
-    return modelFamilies.some((fam) => fam.some((k) => accountTokens.includes(k)));
-  }
-
-  return false;
+export function modelLabel(modelId: string): string {
+  const tokens = modelId.toLowerCase().split(/[^a-z0-9]+/);
+  if (tokens.includes("gemini")) return `Gemini${tokens.includes("flash") ? " Flash" : tokens.includes("pro") ? " Pro" : ""}`;
+  if (tokens.includes("claude")) return `Claude${tokens.includes("opus") ? " Opus" : tokens.includes("sonnet") ? " Sonnet" : tokens.includes("haiku") ? " Haiku" : ""}`;
+  return "GPT";
 }

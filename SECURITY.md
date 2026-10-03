@@ -5,7 +5,7 @@ Pi Usage runs as a Pi extension with the user's local permissions. Review extens
 ## Credential policy
 
 - Provider credentials are resolved through Pi at runtime and are never written by Pi Usage.
-- CLIProxyAPI quota access uses an ordinary inference API key through `pi-bridge`; management keys are unsupported.
+- CLIProxyAPI quota access uses an ordinary inference API key through `pi-usage-cpa`; management keys never reach the client.
 - Authenticated requests stay on the configured provider origin. Cross-origin redirects are rejected.
 - Browser cookies, local storage, and private provider dashboard sessions are not read.
 - Quota responses are cached in memory only.

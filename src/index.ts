@@ -130,7 +130,7 @@ export default function (pi: ExtensionAPI) {
         `Current auth: ${current?.state === "unauthorized" ? "missing or rejected" : "resolved without displaying secret"}`,
         `Hint: /usage current shows only ${ctx.model?.provider ?? "the active provider"}; use /usage all for supported configured providers.`,
         ...(current?.error ? [`Problem: ${current.error}`] : []),
-        ...(current?.state === "not-installed" ? ["Fix: install and enable pi-bridge on the CLIProxyAPI server."] : []),
+        ...(current?.state === "not-installed" ? ["Fix: install and enable pi-usage-cpa on the CLIProxyAPI server."] : []),
       ];
       ctx.ui.notify(lines.join("\n"), current?.state === "ok" || current?.state === "stale" ? "info" : "warning");
       return;

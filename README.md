@@ -2,64 +2,64 @@
 
 # Pi Usage
 
-Native OAuth and CLIProxyAPI quota windows, reset times, and local Skill usage counts for [Pi](https://github.com/earendil-works/pi-mono) and [pi-web](https://github.com/agegr/pi-web).
+为 [Pi](https://github.com/earendil-works/pi-mono) 和 [pi-web](https://github.com/agegr/pi-web) 显示原生 OAuth 与 CLIProxyAPI 额度窗口、重置时间，并在本地统计 Skill 使用次数。
 
-[中文文档](./README_zh.md) · [Report a bug](https://github.com/wayner6/pi-usage/issues)
+[English](./README_EN.md) · [反馈问题](https://github.com/wayner6/pi-usage/issues)
 
 </div>
 
-## At a glance
+## 功能概览
 
-Pi Usage adds a compact status item for the active model:
+Pi Usage 会为当前模型添加一条简洁的状态信息：
 
 ```text
 Codex · 5h 92% (resets in 2h) · 7d 85% (resets in 5d 3h)
 ```
 
-It also provides one command for detailed provider data and Skill statistics:
+需要查看详细信息或 Skill 统计时，使用：
 
 ```text
 /usage
 /usage skills
 ```
 
-The status follows supported active models. Native OAuth quotas are queried for OpenAI Codex, Anthropic, Kimi Code, and OpenRouter; CLIProxyAPI requires a compatible server plugin. Providers without a quota integration are omitted. Network errors, missing authentication, exhausted plans, and a real zero quota remain separate states.
+状态会跟随受支持的当前模型切换。查询 OpenAI Codex、Anthropic、Kimi Code、OpenRouter 的原生 OAuth 额度；CLIProxyAPI 需要兼容的服务端插件。没有额度集成的服务商不显示。网络错误、认证缺失、额度耗尽和真实的零额度会显示为不同状态。
 
-## Screenshots
+## 使用演示
 
-### Provider details with `/usage`
-
-<table>
-  <tr>
-    <th>Pi terminal</th>
-    <th>pi-web</th>
-  </tr>
-  <tr>
-    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png" alt="Pi terminal showing the /usage command" width="100%"></a></td>
-    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png" alt="pi-web showing the /usage command" width="100%"></a></td>
-  </tr>
-</table>
-
-### Active model quota in the footer
+### 使用 `/usage` 查看服务商详情
 
 <table>
   <tr>
-    <th>Pi terminal</th>
+    <th>Pi 终端</th>
     <th>pi-web</th>
   </tr>
   <tr>
-    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png" alt="Pi terminal showing the active model quota in the footer" width="100%"></a></td>
-    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png" alt="pi-web showing the active model quota in the footer" width="100%"></a></td>
+    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png" alt="Pi 终端执行 /usage 命令的效果" width="100%"></a></td>
+    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png" alt="pi-web 执行 /usage 命令的效果" width="100%"></a></td>
   </tr>
 </table>
 
-Click an image to open the full-size version.
+### 在底部查看当前模型额度
 
-## Install
+<table>
+  <tr>
+    <th>Pi 终端</th>
+    <th>pi-web</th>
+  </tr>
+  <tr>
+    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png" alt="Pi 终端底部显示当前模型额度" width="100%"></a></td>
+    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png" alt="pi-web 底部显示当前模型额度" width="100%"></a></td>
+  </tr>
+</table>
 
-Choose npm or GitHub as the installation source. **The new OAuth and `pi-usage-cpa` support is on GitHub (`0.4.0`); npm currently serves the older `0.3.0`.**
+点击图片可查看原图。
 
-### Pi terminal
+## 安装
+
+可以从 npm 或 GitHub 安装。**当前仅支持 `pi-usage-cpa` 的版本在 GitHub（`0.5.0`）；npm 仍为旧版 `0.3.0`。**
+
+### Pi 终端
 
 ```bash
 # npm
@@ -71,7 +71,7 @@ pi install github:wayner6/pi-usage
 
 ### pi-web
 
-Open **Settings > Plugins > Add Plugin**, choose the `global` scope, and enter one of these sources:
+打开 **设置 > 插件 > 添加插件**，作用域选择 `global`，然后填写其中一个来源：
 
 ```text
 npm:@wayner6/pi-usage
@@ -81,104 +81,103 @@ npm:@wayner6/pi-usage
 git:https://github.com/wayner6/pi-usage
 ```
 
-Reload the current session after installing or updating the plugin.
+安装或更新后，请重新加载当前会话。
 
-## Commands
+## 命令
 
-Pi Usage registers only the `/usage` command.
+Pi Usage 只注册 `/usage` 这一个命令。
 
-| Command | What it does |
+| 命令 | 作用 |
 | --- | --- |
-| `/usage` | Shows supported native OAuth and CLIProxyAPI providers |
-| `/usage all` | Same as `/usage` |
-| `/usage current` | Shows data for the active model's provider |
-| `/usage refresh` | Bypasses the cache and refreshes the active provider |
-| `/usage doctor` | Shows the active model, adapter, authentication state, and bridge diagnostics |
-| `/usage skills` | Lists every installed Skill and its accumulated use count, including zero |
-| `/usage settings` | Shows the current plugin settings and configuration path |
+| `/usage` | 查看支持的原生 OAuth 与 CLIProxyAPI 服务商 |
+| `/usage all` | 与 `/usage` 相同 |
+| `/usage current` | 只查看当前模型所属服务商 |
+| `/usage refresh` | 跳过缓存，立即刷新当前服务商 |
+| `/usage doctor` | 查看当前模型、适配器、认证状态和桥接诊断 |
+| `/usage skills` | 列出所有已安装 Skill 及其累计使用次数，包括零次 |
+| `/usage settings` | 查看插件设置和配置文件位置 |
 
-### Skill counting
+### Skill 计数方式
 
-Pi does not emit a dedicated `skill_invoked` event. Pi Usage detects a Skill activation when either of these happens:
+Pi 暂时没有提供独立的 `skill_invoked` 事件。Pi Usage 会在以下两种情况下识别一次 Skill 激活：
 
-1. An accepted `/skill:name` command enters an agent run (failed or cancelled submissions do not count).
-2. The model successfully reads the entry file of a Skill discovered by Pi.
+1. `/skill:name` 命令被 Pi 接收并进入 Agent Run（提交失败或队列取消不计数）。
+2. 模型成功读取 Pi 已发现 Skill 的入口文件。
 
-The same Skill is counted once per agent run, so a `/skill:name` command followed by a read of its `SKILL.md` adds one use, not two. Counts begin after Skill tracking is installed and enabled. Old sessions are not scanned.
+同一个 Agent Run 内，同一 Skill 只计一次。因此，先执行 `/skill:name`，随后模型再读取它的 `SKILL.md`，最终只增加一次，不会重复计数。
 
-`/usage skills` always includes every Skill currently discovered by Pi. Skills that have not been used show `0`.
+统计从安装并开启该功能后开始，不会扫描旧会话。`/usage skills` 会列出 Pi 当前发现的全部 Skill，从未使用过的 Skill 显示为 `0`。
 
-## Provider support
+## 服务商支持
 
-| Provider | Level | Authentication | Displayed data |
+| 服务商 | 支持级别 | 认证方式 | 显示内容 |
 | --- | --- | --- | --- |
-| OpenAI Codex | Full quota | ChatGPT OAuth | Main 5-hour and 7-day windows; additional model limits when returned |
-| Anthropic | OAuth usage endpoint (undocumented, may rate-limit) | Pi Claude Pro/Max OAuth | 5-hour, 7-day and returned model-specific weekly windows |
-| Kimi Code | OAuth usage endpoint (undocumented) | Pi `kimi-coding` OAuth | 7-day and reported rolling 5-hour windows |
-| OpenRouter | Key-level limits | Pi OpenRouter OAuth (exchanged for an API key) | Per-key spending cap and free-model daily requests if present; **not** account balance or subscription quota |
-| CLIProxyAPI | Upstream-dependent | Proxy API key and server-side `pi-usage-cpa` or legacy `pi-bridge` | Only accounts and pools returned by the installed plugin |
+| OpenAI Codex | 完整额度 | ChatGPT OAuth | 主额度的 5 小时、7 天窗口，以及接口返回的额外模型额度 |
+| Anthropic | OAuth 用量接口（未公开文档，可能限流） | Pi 的 Claude Pro/Max OAuth | 5 小时、7 天及实际返回的模型专属周额度 |
+| Kimi Code | OAuth 用量接口（未公开文档） | Pi `kimi-coding` OAuth | 7 天及实际返回的滚动 5 小时额度 |
+| OpenRouter | Key 级限额 | Pi OpenRouter OAuth（换取 API Key） | Key 消费上限及免费模型日请求额度（若存在）；**不是**账户余额或订阅额度 |
+| CLIProxyAPI | 取决于上游 | 代理 API Key 与服务端 `pi-usage-cpa` | 只显示插件返回的 Antigravity 账户和额度池 |
 
-Providers without a supported quota query are omitted from the status and provider listing. CPA may display quota pools for upstream services returned by its plugin; this is not a native integration with those services.
+没有可用额度查询的服务商不会出现在状态栏或额度列表中。CPA 仅展示 `pi-usage-cpa` 返回的 Antigravity 额度组。
 
-### How provider data is handled
+### 服务商数据如何处理
 
-Native OAuth credentials are resolved by Pi; requests stay on each provider's fixed official origin and never follow cross-origin redirects. ChatGPT OAuth is queried at the official ChatGPT origin. API keys are not used for the ChatGPT integration. The account ID comes from the resolved OAuth token, not a separate auth file. Additional model limits appear in `/usage`; the compact status stays focused on the main windows. Reset countdowns are shown only when the provider returns a reset timestamp.
+原生 OAuth 凭据由 Pi 解析；额度请求只发送到各服务商固定的官方域名，且不跨域跟随重定向。ChatGPT OAuth 使用官方 ChatGPT 域名查询，不使用普通 API Key。账户 ID 从当前解析的 OAuth token 获取，不再另读认证文件。额外模型额度在 `/usage` 详情中展示；简洁状态仍以主额度窗口为主。只有服务商返回重置时间时，插件才会显示倒计时。
 
-For CLIProxyAPI, the client tries [`pi-usage-cpa`](https://github.com/wayner6/pi-usage-cpa) first, falling back to the legacy `pi-bridge` endpoint **only on 404**. The new plugin's real-world Antigravity windows and CPA deployment remain unverified; the old bridge's single pools must not be labeled 5h/7d. Pi Usage uses the normal proxy API key and never requests or stores the CLIProxyAPI Management Key. It displays only the accounts and quota pools returned by the server plugin.
+对 CLIProxyAPI，需在服务端安装 [`pi-usage-cpa`](https://github.com/wayner6/pi-usage-cpa)。客户端**仅请求** `/v0/resource/plugins/pi-usage-cpa/usage`；若未安装则显示 `Bridge Not Found`，不回退其他插件。真实 Antigravity 双窗口和 CPA 部署尚未实测。Pi Usage 使用普通代理 API Key，不会请求或保存 CLIProxyAPI Management Key。界面只展示 `pi-usage-cpa` 返回的账户和额度池。
 
-Proxy accounts are matched by model family and model ID. An unrelated model cannot reuse another provider's quota. Shared pools stay shared: Pi Usage does not turn one Antigravity pool into fictional 5-hour and weekly windows.
+Antigravity 账户按模型族匹配；降级数据只匹配特定模型。当前模型不能借用无关额度，也不会把未知窗口的降级数据凭空拆成 5 小时和周额度。
 
-## States you may see
+## 状态说明
 
-| State | Meaning |
+| 状态 | 含义 |
 | --- | --- |
-| `Unauthorized` | Pi could not resolve valid credentials, or the provider rejected them |
-| `No Quota` | The endpoint returned no supported quota fields; this does not establish zero remaining |
-| `Unsupported` | A supported proxy reports that the selected upstream model has no quota integration |
-| `Bridge Not Found` | CLIProxyAPI is reachable, but neither usage plugin endpoint is available |
-| `stale` | A refresh failed and the last successful result is being shown |
-| `0%` | The provider successfully reported a real zero quota |
+| `Unauthorized` | Pi 没有解析到有效凭据，或服务商拒绝了凭据 |
+| `No Quota` | 接口未返回可识别的额度字段，不代表余额为零 |
+| `Bridge Not Found` | CLIProxyAPI 可以访问，但 `pi-usage-cpa` 接口不可用 |
+| `stale` | 本次刷新失败，当前显示的是上次成功获取的数据 |
+| `0%` | 服务商成功返回了真实的零额度 |
 
-## Settings
+## 设置
 
 ```text
-/usage settings status on|off       # compact status item, default: on
-/usage settings widget on|off       # detailed widget below the editor, default: off
-/usage settings skills on|off       # local Skill counting, default: on
-/usage settings interval <seconds>  # automatic refresh, 30 to 3600, default: 120
-/usage settings timeout <seconds>   # request timeout, 2 to 60, default: 10
+/usage settings status on|off       # 简洁状态信息，默认开启
+/usage settings widget on|off       # 输入框下方的详细信息，默认关闭
+/usage settings skills on|off       # 本地 Skill 计数，默认开启
+/usage settings interval <秒数>     # 自动刷新间隔，30 到 3600，默认 120
+/usage settings timeout <秒数>      # 请求超时，2 到 60，默认 10
 ```
 
-Local files:
+本地文件位置：
 
 ```text
 ~/.pi/agent/pi-usage/config.json
 ~/.pi/agent/pi-usage/skill-usage.jsonl
 ```
 
-The Skill log is append-only and stores only the Skill name and timestamp.
+Skill 日志采用追加写入，只保存 Skill 名称和时间。
 
-## Update
+## 更新
 
 ```bash
-# Update Pi Usage installed from npm
+# 更新通过 npm 安装的 Pi Usage
 pi update npm:@wayner6/pi-usage
 
-# Update all installed extensions without updating Pi itself
+# 更新全部扩展，但不更新 Pi 本身
 pi update --extensions
 ```
 
-In pi-web, open **Settings > Plugins**, update Pi Usage, and reload the session.
+在 pi-web 中，打开 **设置 > 插件**，更新 Pi Usage，然后重新加载会话。
 
-## Privacy and security
+## 隐私与安全
 
-Pi Usage does not use browser cookies, telemetry, or cloud synchronization. It does not send credentials to third-party origins. Native OAuth usage requests stay on their respective official origins, while CLIProxyAPI requests stay on the configured proxy origin.
+Pi Usage 不使用浏览器 Cookie、遥测或云同步，也不会把凭据发送到第三方域名。原生 OAuth 请求只发送到各自官方域名，CLIProxyAPI 请求只发送到已配置的代理源站。
 
-Skill counting does not store prompts, conversation text, tool output, or Skill contents.
+Skill 统计不会保存提示词、对话内容、工具输出或 Skill 文件内容。
 
-Security reports are covered by [SECURITY.md](./SECURITY.md).
+安全问题请参考 [SECURITY.md](./SECURITY.md)。
 
-## Development
+## 开发
 
 ```bash
 npm install
@@ -186,12 +185,12 @@ npm run verify
 npm run pack:check
 ```
 
-`npm run verify` runs TypeScript checks and the test suite. See [CONTRIBUTING.md](./CONTRIBUTING.md) before submitting a change.
+`npm run verify` 会执行 TypeScript 检查和完整测试。提交修改前请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
-## Community
+## 社区
 
-Thanks to the [LINUX DO](https://linux.do/) community for testing and discussion.
+感谢 [LINUX DO](https://linux.do/) 社区参与测试和讨论。
 
-## License
+## 许可证
 
 [MIT](./LICENSE)

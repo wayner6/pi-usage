@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bridgeUsageUrl, isUrlOnDomain, sameOriginFetch } from "../src/core/security.ts";
+import { cpaUsageUrl, isUrlOnDomain, sameOriginFetch } from "../src/core/security.ts";
 
 test("official-domain checks reject lookalike hostnames", () => {
   assert.equal(isUrlOnDomain("https://api.openrouter.ai/v1", "openrouter.ai"), true);
@@ -8,8 +8,9 @@ test("official-domain checks reject lookalike hostnames", () => {
   assert.equal(isUrlOnDomain("://invalid", "openrouter.ai"), false);
 });
 
-test("bridge URL stays on provider origin", () => {
-  assert.equal(bridgeUsageUrl("https://cpa.example.com/v1").href, "https://cpa.example.com/v0/resource/plugins/pi-bridge/usage");
+test("CPA usage URL stays on the configured provider origin", () => {
+  assert.equal(cpaUsageUrl("https://cpa.example.com/v1").href, "https://cpa.example.com/v0/resource/plugins/pi-usage-cpa/usage");
+  assert.equal(cpaUsageUrl("https://cpa.example.com/v1", true).searchParams.get("refresh"), "1");
 });
 
 test("authenticated redirects cannot cross origin", async () => {
