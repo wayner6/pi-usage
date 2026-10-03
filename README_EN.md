@@ -57,7 +57,7 @@ Click an image to open the full-size version.
 
 ## Install
 
-Choose npm or GitHub as the installation source. **The GitHub version (`0.5.0`) supports only `pi-usage-cpa` for CPA quota access; npm still serves the older `0.3.0`.**
+Choose npm or GitHub as the installation source. **GitHub `0.6.0` supports seven CPA quota providers through `pi-usage-cpa`; npm `latest` remains `0.3.0` and does not support this plugin.**
 
 ### Pi terminal
 
@@ -116,15 +116,15 @@ The same Skill is counted once per agent run, so a `/skill:name` command followe
 | Anthropic | OAuth usage endpoint (undocumented, may rate-limit) | Pi Claude Pro/Max OAuth | 5-hour, 7-day and returned model-specific weekly windows |
 | Kimi Code | OAuth usage endpoint (undocumented) | Pi `kimi-coding` OAuth | 7-day and reported rolling 5-hour windows |
 | OpenRouter | Key-level limits | Pi OpenRouter OAuth (exchanged for an API key) | Per-key spending cap and free-model daily requests if present; **not** account balance or subscription quota |
-| CLIProxyAPI | Upstream-dependent | Proxy API key and server-side `pi-usage-cpa` | Only Antigravity accounts and pools returned by the plugin |
+| CLIProxyAPI | Upstream-dependent | Proxy API key and server-side `pi-usage-cpa` | GitHub 0.6.0 displays real per-account quotas for Antigravity, Claude, Codex, Kimi, xAI, Devin, and Meta when available; accounts without a queryable quota remain unavailable |
 
-Providers without a supported quota query are omitted from the status and provider listing. CPA quota display is limited to the Antigravity groups returned by `pi-usage-cpa`.
+Providers without a supported quota query do not get invented quotas. CPA displays only quota groups returned by `pi-usage-cpa` and matched to the active model. Requires server plugin `pi-usage-cpa v0.2.0`; updating only the client or using server v0.1.0 cannot display the six newly added providers.
 
 ### How provider data is handled
 
 Native OAuth credentials are resolved by Pi; requests stay on each provider's fixed official origin and never follow cross-origin redirects. ChatGPT OAuth is queried at the official ChatGPT origin. API keys are not used for the ChatGPT integration. The account ID comes from the resolved OAuth token, not a separate auth file. Additional model limits appear in `/usage`; the compact status stays focused on the main windows. Reset countdowns are shown only when the provider returns a reset timestamp.
 
-For CLIProxyAPI, install [`pi-usage-cpa`](https://github.com/wayner6/pi-usage-cpa) on the server. The client requests **only** `/v0/resource/plugins/pi-usage-cpa/usage`; a missing plugin produces `Bridge Not Found`, without fallback to other plugins. Real-world Antigravity windows and deployment remain unverified. Pi Usage uses the normal proxy API key and never requests or stores the CLIProxyAPI Management Key. It displays only the accounts and quota pools returned by `pi-usage-cpa`.
+For CLIProxyAPI, install [`pi-usage-cpa`](https://github.com/wayner6/pi-usage-cpa) on the server. The client requests **only** `/v0/resource/plugins/pi-usage-cpa/usage`; a missing plugin produces `Bridge Not Found`, without fallback to other plugins. Real CPA v8 upstream responses and Docker Compose deployment remain unverified; not every account is guaranteed to return quota. Pi Usage uses the normal proxy API key and never requests or stores the CLIProxyAPI Management Key. It displays only sanitized accounts and explicit quota windows returned by `pi-usage-cpa`; xAI health probes, balances, and unknown windows are never presented as 5h/7d quotas.
 
 Antigravity accounts are matched by model family; fallback observations remain model-specific. An unrelated model cannot borrow another model's quota, and an unlabelled fallback is never turned into fictional 5-hour or weekly windows.
 
