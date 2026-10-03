@@ -29,7 +29,7 @@ Install Pi Usage in Pi / pi-web. Native OAuth connections query the provider dir
 
 ## Install
 
-Use GitHub for the current version, **0.6.1**. npm latest is still the older `0.3.0` release and does not support the new CPA server plugin.
+Install from GitHub. The current version is **0.6.1**.
 
 ### pi-web
 
@@ -42,8 +42,6 @@ Use GitHub for the current version, **0.6.1**. npm latest is still the older `0.
 
 3. Install, then reload the current session.
 
-If you already use the npm version, remove it before adding the GitHub source to avoid loading two copies.
-
 ### Pi terminal
 
 ```bash
@@ -51,25 +49,6 @@ pi install github:wayner6/pi-usage
 ```
 
 Reload the current session after installation.
-
-<details>
-<summary>Installing the older npm release</summary>
-
-npm `0.3.0` does not provide the new CPA integration described here. Use the GitHub source above if you need that feature.
-
-Pi terminal:
-
-```bash
-pi install npm:@wayner6/pi-usage
-```
-
-pi-web plugin source:
-
-```text
-npm:@wayner6/pi-usage
-```
-
-</details>
 
 ### Additional steps for CPA
 
@@ -173,7 +152,7 @@ In pi-web, update Pi Usage under **Settings → Plugins**. In the terminal, upda
 pi update --extensions
 ```
 
-An older npm installation can be updated with `pi update npm:@wayner6/pi-usage`, but this does not switch it to GitHub. Reload the session after updating.
+Reload the session after updating.
 
 ## Troubleshooting
 

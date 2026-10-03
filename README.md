@@ -29,7 +29,7 @@ Pi Usage 安装在 Pi / pi-web 中。使用原生 OAuth 时，直接查询服务
 
 ## 安装
 
-推荐从 GitHub 安装，当前版本为 **0.6.1**。npm latest 仍是旧版 `0.3.0`，不支持新的 CPA 服务端插件。
+从 GitHub 安装，当前版本为 **0.6.1**。
 
 ### pi-web
 
@@ -42,8 +42,6 @@ Pi Usage 安装在 Pi / pi-web 中。使用原生 OAuth 时，直接查询服务
 
 3. 安装后重新加载当前会话。
 
-如果已安装 npm 版，先移除旧插件，再添加 GitHub 来源，避免同时加载两份。
-
 ### Pi 终端
 
 ```bash
@@ -51,25 +49,6 @@ pi install github:wayner6/pi-usage
 ```
 
 安装后重新加载当前会话。
-
-<details>
-<summary>旧 npm 版安装方式</summary>
-
-npm `0.3.0` 不具备本文所述的新版 CPA 集成。需要该功能时，请使用上面的 GitHub 来源。
-
-Pi 终端：
-
-```bash
-pi install npm:@wayner6/pi-usage
-```
-
-pi-web 插件来源：
-
-```text
-npm:@wayner6/pi-usage
-```
-
-</details>
 
 ### 使用 CPA 的额外步骤
 
@@ -173,7 +152,7 @@ pi-web 在 **设置 → 插件** 中更新 Pi Usage。Pi 终端可更新全部�
 pi update --extensions
 ```
 
-旧 npm 安装可用 `pi update npm:@wayner6/pi-usage` 更新，但不会切换到 GitHub 来源。更新后都需重新加载会话。
+更新后重新加载会话。
 
 ## 常见问题
 
