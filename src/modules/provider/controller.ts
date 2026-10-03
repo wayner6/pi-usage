@@ -5,6 +5,7 @@ import { UsageCache } from "../../core/cache.ts";
 import type { Metric, ProviderTarget, UsageAdapter, UsageSnapshot } from "../../core/types.ts";
 import { cliProxyBridgeAdapter } from "./adapters/cliproxy-pi-bridge.ts";
 import { openAICodexAdapter } from "./adapters/openai-codex.ts";
+import { anthropicOAuthAdapter, kimiCodingOAuthAdapter, openRouterOAuthAdapter } from "./adapters/native-oauth.ts";
 import { chooseAdapter, matchModelAcrossAccounts, isAccountCompatibleWithModel, tokenizeModelId } from "./matching.ts";
 import { relativeTime } from "../../ui/format.ts";
 import { safeError } from "../../core/security.ts";
@@ -12,9 +13,10 @@ import { safeError } from "../../core/security.ts";
 export class ProviderUsageController {
   readonly cache = new UsageCache();
   private adapters: UsageAdapter[];
+  private lastAnthropicQuery = new Map<string, number>();
 
   constructor(private config: UsageConfig, private fetchFn: typeof fetch = fetch) {
-    this.adapters = [openAICodexAdapter, cliProxyBridgeAdapter];
+    this.adapters = [openAICodexAdapter, anthropicOAuthAdapter, kimiCodingOAuthAdapter, openRouterOAuthAdapter, cliProxyBridgeAdapter];
   }
 
   setConfig(config: UsageConfig): void { this.config = config; }
@@ -56,7 +58,9 @@ export class ProviderUsageController {
   }
 
   private enabled(adapter: UsageAdapter): boolean {
-    return adapter.id === "openai-codex" ? this.config.adapters.openaiCodex.enabled : this.config.adapters.cliproxyPiBridge.enabled;
+    if (adapter.id === "openai-codex") return this.config.adapters.openaiCodex.enabled;
+    if (adapter.id === "cliproxy-pi-bridge") return this.config.adapters.cliproxyPiBridge.enabled;
+    return this.config.adapters.nativeOAuth.enabled;
   }
 
   async fetchTarget(target: ProviderTarget, force = false): Promise<UsageSnapshot> {
@@ -65,7 +69,13 @@ export class ProviderUsageController {
     if (!adapter) return { adapterId: "none", sourceProviderId: target.providerId, displayName, state: "unsupported", fetchedAt: new Date().toISOString(), accounts: [], error: "No enabled usage adapter matched this provider" };
     if (target.authError) return { adapterId: adapter.id, sourceProviderId: target.providerId, displayName, state: "unavailable", fetchedAt: new Date().toISOString(), accounts: [], error: `Provider authentication could not be resolved: ${target.authError}` };
     const key = `${target.providerId}:${adapter.id}`;
+    // Anthropic's undocumented usage endpoint rate-limits frequent polling.
+    if (adapter.id === "anthropic" && !force && Date.now() - (this.lastAnthropicQuery.get(key) ?? 0) < 15 * 60_000) {
+      const cached = this.cache.get(key);
+      if (cached) return cached;
+    }
     return this.cache.coalesce(key, async () => {
+      if (adapter.id === "anthropic") this.lastAnthropicQuery.set(key, Date.now());
       const timeout = AbortSignal.timeout(this.config.refresh.timeoutSeconds * 1000);
       return adapter.fetch({ target, signal: timeout, force, fetchFn: this.fetchFn });
     });
@@ -93,7 +103,7 @@ export class ProviderUsageController {
     }
 
     // 3. Known standard providers with configured auth
-    const knownProviders = ["openai-codex"];
+    const knownProviders = ["openai-codex", "anthropic", "kimi-coding", "openrouter"];
     for (const id of knownProviders) {
       if (ctx.modelRegistry.getProviderAuthStatus(id).configured) {
         providerIds.add(id);
@@ -123,21 +133,34 @@ export class ProviderUsageController {
     // Cross-account/model matching is only needed for multiplexed pi-bridge snapshots.
     if (snapshot.adapterId !== "cliproxy-pi-bridge") return snapshot;
 
+    const eligible = snapshot.accounts.filter((a) => !a.disabled && !a.unavailable &&
+      (!model?.id || isAccountCompatibleWithModel(a, model.id) ||
+        (a.provider === "antigravity" && a.missingWindows && /(?:gemini|claude|gpt)/i.test(model.id))));
+    if (eligible.length > 1) return {
+      ...snapshot,
+      accounts: eligible,
+      summary: `${eligible.length} accounts · routing account unknown`,
+    };
     const matched = matchModelAcrossAccounts(snapshot.accounts, model?.id, model?.provider);
+    if (!matched && model?.id && eligible.some((a) => a.missingWindows)) return {
+      ...snapshot, accounts: eligible, state: "empty", summary: `${model.id} · 5h unavailable · 7d unavailable`,
+    };
     if (matched) {
       let summary: string;
 
-      if (matched.quota.multiWindows && matched.quota.multiWindows.length > 1) {
-        const family = matched.quota.multiWindows[0]!.label.split(/\s+/)[0] || matched.quota.label;
+      if (matched.quota.multiWindows && matched.quota.multiWindows.length > 0) {
+        const family = matched.quota.missingWindows ? matched.quota.label : matched.quota.multiWindows[0]!.label.split(/\s+/)[0] || matched.quota.label;
         const parts = matched.quota.multiWindows.map((q) => {
           const sub = q.label.replace(new RegExp(`^${family}\\s+`, "i"), "");
           const reset = q.resetAt ? relativeTime(q.resetAt) : undefined;
           return `${sub} ${Math.round(q.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}`;
         });
+        parts.push(...(matched.quota.missingWindows ?? []).map((w) => `${w} unavailable`));
         summary = `${family} · ${parts.join(" · ")}`;
       } else {
         const reset = matched.quota.resetAt ? relativeTime(matched.quota.resetAt) : undefined;
-        summary = `${matched.quota.label} ${Math.round(matched.quota.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}`;
+        const fallback = Array.isArray(matched.account.rawGroups) && matched.account.rawGroups.some((g: { source?: string }) => g.source === "fallback");
+        summary = `${matched.quota.label} ${Math.round(matched.quota.remainingFraction * 100)}%${reset ? ` (${reset})` : ""}${fallback ? " · window unknown · 5h/7d unavailable" : ""}`;
       }
 
       return {
@@ -173,6 +196,9 @@ export class ProviderUsageController {
 
       if (compatibleAccounts.length > 0) {
         const first = compatibleAccounts[0]!;
+        if (Array.isArray(first.rawGroups) && first.rawGroups.some((g: { modelGroup?: string }) => g.modelGroup)) {
+          return { ...snapshot, accounts: [first], state: "empty", summary: `${model.id} · 5h unavailable · 7d unavailable` };
+        }
         if (first.metrics.length > 0) {
           const quotaMetrics = first.metrics
             .filter((m): m is Extract<Metric, { kind: "quota-window" }> => m.kind === "quota-window");

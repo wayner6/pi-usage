@@ -1,6 +1,6 @@
 import type { Metric, UsageAdapter, UsageSnapshot } from "../../../core/types.ts";
 import { bridgeUsageUrl, isUrlOnDomain, safeError, sameOriginFetch } from "../../../core/security.ts";
-import { isAccountRelevantToModels, isGroupRelevantToModels, deduplicateSharedQuotaGroups, friendlyGroupName } from "../matching.ts";
+import { isAccountRelevantToModels, isGroupRelevantToModels, deduplicateSharedQuotaGroups, friendlyGroupName, type RawBridgeGroup } from "../matching.ts";
 
 const NATIVE_PROVIDER_IDS = new Set([
   "deepseek",
@@ -26,8 +26,8 @@ const NATIVE_PROVIDER_IDS = new Set([
   "google-vertex",
 ]);
 
-type BridgeGroup = { id?: string; label?: string; remainingFraction?: number; resetTime?: string; models?: Array<{ id?: string; displayName?: string; remainingFraction?: number; resetTime?: string }> };
-type BridgeAccount = { provider?: string; account?: string; authIndex?: string; label?: string; status?: string; disabled?: boolean; unavailable?: boolean; error?: string; groups?: BridgeGroup[] };
+type BridgeGroup = RawBridgeGroup;
+type BridgeAccount = { provider?: string; account?: string; authIndex?: string; label?: string; status?: string; disabled?: boolean; unavailable?: boolean; error?: string; missingWindows?: string[]; groups?: BridgeGroup[] };
 type BridgeUsage = { schemaVersion?: number; generatedAt?: string; cache?: { updatedAt?: string; stale?: boolean; ttlMs?: number }; accounts?: BridgeAccount[]; unsupportedProviders?: string[] };
 
 function metrics(groups: BridgeGroup[]): Metric[] {
@@ -72,7 +72,16 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
     if (!baseUrl || !apiKey) return { adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId, state: "unauthorized", fetchedAt, accounts: [], error: "Missing base URL or API key" };
     const origin = new URL(baseUrl).origin;
     try {
-      const response = await sameOriginFetch(bridgeUsageUrl(baseUrl, force), {
+      const newUrl = bridgeUsageUrl(baseUrl, force);
+      newUrl.pathname = "/v0/resource/plugins/pi-usage-cpa/usage";
+      const init: RequestInit = {
+        method: "GET",
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json", "X-Pi-Contract": "2" },
+        signal,
+      };
+      let response = await sameOriginFetch(newUrl, init, fetchFn, origin);
+      // Only absence, never authorization/errors, permits legacy fallback.
+      if (response.status === 404) response = await sameOriginFetch(bridgeUsageUrl(baseUrl, force), {
         method: "GET",
         headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json", "X-Pi-Contract": "2" },
         signal,
@@ -109,12 +118,14 @@ export const cliProxyBridgeAdapter: UsageAdapter = {
             ...(account.unavailable !== undefined ? { unavailable: account.unavailable } : {}),
             metrics: metrics(displayGroups),
             rawGroups: displayGroups,
+            ...(account.missingWindows ? { missingWindows: account.missingWindows } : {}),
             ...(account.error ? { error: account.error } : {}),
           };
         })
         // 3. Filter out accounts that have no relevant groups or aren't relevant to user models
         .filter((account) => {
           if (!target.configuredModelIds || target.configuredModelIds.length === 0) return true;
+          if (account.provider === "antigravity" && account.missingWindows && target.configuredModelIds.some((id) => /(?:gemini|claude|gpt)/i.test(id))) return true;
           return isAccountRelevantToModels(account, target.configuredModelIds) && account.metrics.length > 0;
         });
 

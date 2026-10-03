@@ -2,7 +2,7 @@
 
 # Pi Usage
 
-ChatGPT OAuth and CLIProxyAPI quota windows, reset times, and local Skill usage counts for [Pi](https://github.com/earendil-works/pi-mono) and [pi-web](https://github.com/agegr/pi-web).
+Native OAuth and CLIProxyAPI quota windows, reset times, and local Skill usage counts for [Pi](https://github.com/earendil-works/pi-mono) and [pi-web](https://github.com/agegr/pi-web).
 
 [中文文档](./README_zh.md) · [Report a bug](https://github.com/wayner6/pi-usage/issues)
 
@@ -23,7 +23,7 @@ It also provides one command for detailed provider data and Skill statistics:
 /usage skills
 ```
 
-The status follows the active model. Only ChatGPT OAuth (OpenAI Codex) and CLIProxyAPI with `pi-bridge` are queried. Other providers are unsupported. Network errors, missing authentication, unsupported providers, exhausted plans, and a real zero quota remain separate states.
+The status follows supported active models. Native OAuth quotas are queried for OpenAI Codex, Anthropic, Kimi Code, and OpenRouter; CLIProxyAPI requires a compatible server plugin. Providers without a quota integration are omitted. Network errors, missing authentication, exhausted plans, and a real zero quota remain separate states.
 
 ## Screenshots
 
@@ -57,7 +57,7 @@ Click an image to open the full-size version.
 
 ## Install
 
-Choose npm or GitHub as the installation source.
+Choose npm or GitHub as the installation source. **The new OAuth and `pi-usage-cpa` support is on GitHub (`0.4.0`); npm currently serves the older `0.3.0`.**
 
 ### Pi terminal
 
@@ -89,7 +89,7 @@ Pi Usage registers only the `/usage` command.
 
 | Command | What it does |
 | --- | --- |
-| `/usage` | Shows configured ChatGPT OAuth and CLIProxyAPI providers |
+| `/usage` | Shows supported native OAuth and CLIProxyAPI providers |
 | `/usage all` | Same as `/usage` |
 | `/usage current` | Shows data for the active model's provider |
 | `/usage refresh` | Bypasses the cache and refreshes the active provider |
@@ -112,16 +112,19 @@ The same Skill is counted once per agent run, so a `/skill:name` command followe
 
 | Provider | Level | Authentication | Displayed data |
 | --- | --- | --- | --- |
-| OpenAI Codex | Full quota | ChatGPT Plus/Pro OAuth only | Main 5-hour and 7-day windows; additional model limits when returned |
-| CLIProxyAPI | Upstream-dependent | Proxy API key and server-side `pi-bridge` | Only accounts and pools returned by `pi-bridge` |
+| OpenAI Codex | Full quota | ChatGPT OAuth | Main 5-hour and 7-day windows; additional model limits when returned |
+| Anthropic | OAuth usage endpoint (undocumented, may rate-limit) | Pi Claude Pro/Max OAuth | 5-hour, 7-day and returned model-specific weekly windows |
+| Kimi Code | OAuth usage endpoint (undocumented) | Pi `kimi-coding` OAuth | 7-day and reported rolling 5-hour windows |
+| OpenRouter | Key-level limits | Pi OpenRouter OAuth (exchanged for an API key) | Per-key spending cap and free-model daily requests if present; **not** account balance or subscription quota |
+| CLIProxyAPI | Upstream-dependent | Proxy API key and server-side `pi-usage-cpa` or legacy `pi-bridge` | Only accounts and pools returned by the installed plugin |
 
-All other native providers are unsupported and are not queried. CPA may display quota pools for upstream services returned by `pi-bridge`; this is not a native integration with those services.
+Providers without a supported quota query are omitted from the status and provider listing. CPA may display quota pools for upstream services returned by its plugin; this is not a native integration with those services.
 
 ### How provider data is handled
 
-ChatGPT OAuth is queried at the official ChatGPT origin. API keys are not used for this integration. The account ID comes from the resolved OAuth token, not a separate auth file. Additional model limits appear in `/usage`; the compact status stays focused on the main windows. Reset countdowns are shown only when the provider returns a reset timestamp.
+Native OAuth credentials are resolved by Pi; requests stay on each provider's fixed official origin and never follow cross-origin redirects. ChatGPT OAuth is queried at the official ChatGPT origin. API keys are not used for the ChatGPT integration. The account ID comes from the resolved OAuth token, not a separate auth file. Additional model limits appear in `/usage`; the compact status stays focused on the main windows. Reset countdowns are shown only when the provider returns a reset timestamp.
 
-For CLIProxyAPI, install [`pi-bridge`](https://github.com/abix5/pi-cliproxyapi-bridge) on the CLIProxyAPI server. Pi Usage uses the normal proxy API key and never requests or stores the CLIProxyAPI Management Key. It displays only the accounts and quota pools returned by the bridge.
+For CLIProxyAPI, the client tries [`pi-usage-cpa`](https://github.com/wayner6/pi-usage-cpa) first, falling back to the legacy `pi-bridge` endpoint **only on 404**. The new plugin's real-world Antigravity windows and CPA deployment remain unverified; the old bridge's single pools must not be labeled 5h/7d. Pi Usage uses the normal proxy API key and never requests or stores the CLIProxyAPI Management Key. It displays only the accounts and quota pools returned by the server plugin.
 
 Proxy accounts are matched by model family and model ID. An unrelated model cannot reuse another provider's quota. Shared pools stay shared: Pi Usage does not turn one Antigravity pool into fictional 5-hour and weekly windows.
 
@@ -130,9 +133,9 @@ Proxy accounts are matched by model family and model ID. An unrelated model cann
 | State | Meaning |
 | --- | --- |
 | `Unauthorized` | Pi could not resolve valid credentials, or the provider rejected them |
-| `No active quota` | Authentication worked, but the account has no usable plan or credits |
-| `Unsupported` | This provider is outside the supported quota integrations |
-| `Bridge Not Found` | CLIProxyAPI is reachable, but its `pi-bridge` endpoint is missing |
+| `No Quota` | The endpoint returned no supported quota fields; this does not establish zero remaining |
+| `Unsupported` | A supported proxy reports that the selected upstream model has no quota integration |
+| `Bridge Not Found` | CLIProxyAPI is reachable, but neither usage plugin endpoint is available |
 | `stale` | A refresh failed and the last successful result is being shown |
 | `0%` | The provider successfully reported a real zero quota |
 
@@ -169,7 +172,7 @@ In pi-web, open **Settings > Plugins**, update Pi Usage, and reload the session.
 
 ## Privacy and security
 
-Pi Usage does not use browser cookies, telemetry, or cloud synchronization. It does not send credentials to third-party origins. ChatGPT requests stay on its official origin, while CLIProxyAPI requests stay on the configured proxy origin.
+Pi Usage does not use browser cookies, telemetry, or cloud synchronization. It does not send credentials to third-party origins. Native OAuth usage requests stay on their respective official origins, while CLIProxyAPI requests stay on the configured proxy origin.
 
 Skill counting does not store prompts, conversation text, tool output, or Skill contents.
 

@@ -21,6 +21,7 @@ export interface UsageAccount {
   unavailable?: boolean;
   metrics: Metric[];
   rawGroups?: unknown;
+  missingWindows?: string[];
   error?: string;
 }
 

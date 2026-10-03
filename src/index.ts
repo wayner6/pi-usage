@@ -41,8 +41,9 @@ export default function (pi: ExtensionAPI) {
   }
 
   function render(ctx: ExtensionContext, snapshot?: UsageSnapshot, model: Model<Api> | undefined = ctx.model): void {
-    const current = controller.currentView(ctx, snapshot, model);
-    ctx.ui.setStatus(STATUS_ID, config.display.status ? ctx.ui.theme.fg(current?.state === "ok" ? "success" : current?.state === "stale" ? "warning" : "dim", compactSnapshot(current)) : undefined);
+    const view = controller.currentView(ctx, snapshot, model);
+    const current = view?.adapterId === "none" ? undefined : view;
+    ctx.ui.setStatus(STATUS_ID, config.display.status && current ? ctx.ui.theme.fg(current.state === "ok" ? "success" : current.state === "stale" ? "warning" : "dim", compactSnapshot(current)) : undefined);
     ctx.ui.setWidget(WIDGET_ID, config.display.widget && current ? snapshotLines(current) : undefined, { placement: "belowEditor" });
   }
 
@@ -136,12 +137,12 @@ export default function (pi: ExtensionAPI) {
     }
     if (action === "refresh") {
       const snapshot = await refreshCurrent(ctx, true);
-      await showDetails(ctx, snapshot ? [controller.currentView(ctx, snapshot) ?? snapshot] : []);
+      await showDetails(ctx, snapshot && snapshot.adapterId !== "none" ? [controller.currentView(ctx, snapshot) ?? snapshot] : []);
       return;
     }
     if (action === "current") {
       const snapshot = await refreshCurrent(ctx);
-      await showDetails(ctx, snapshot ? [controller.currentView(ctx, snapshot) ?? snapshot] : []);
+      await showDetails(ctx, snapshot && snapshot.adapterId !== "none" ? [controller.currentView(ctx, snapshot) ?? snapshot] : []);
       return;
     }
     if (action !== "all") {
@@ -152,7 +153,7 @@ export default function (pi: ExtensionAPI) {
     await showDetails(ctx, snapshots);
   }
 
-  pi.registerCommand("usage", { description: "Show ChatGPT OAuth and CPA quotas, and skill activations", handler: command });
+  pi.registerCommand("usage", { description: "Show supported OAuth and CPA quotas, and skill activations", handler: command });
 
   pi.on("session_start", async (_event, ctx) => {
     config = await loadConfig();

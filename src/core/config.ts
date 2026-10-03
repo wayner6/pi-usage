@@ -9,8 +9,9 @@ export interface UsageConfig {
   adapters: {
     cliproxyPiBridge: { enabled: boolean };
     openaiCodex: { enabled: boolean };
+    nativeOAuth: { enabled: boolean };
   };
-  providerOverrides: Record<string, "cliproxy-pi-bridge" | "openai-codex" | "disabled">;
+  providerOverrides: Record<string, "cliproxy-pi-bridge" | "openai-codex" | "anthropic" | "kimi-coding" | "openrouter" | "disabled">;
 }
 
 export const DEFAULT_CONFIG: UsageConfig = {
@@ -20,6 +21,7 @@ export const DEFAULT_CONFIG: UsageConfig = {
   adapters: {
     cliproxyPiBridge: { enabled: true },
     openaiCodex: { enabled: true },
+    nativeOAuth: { enabled: true },
   },
   providerOverrides: {},
 };
@@ -39,7 +41,7 @@ function boolean(value: unknown, fallback: boolean): boolean {
 function providerOverrides(value: unknown): UsageConfig["providerOverrides"] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const allowed = new Set([
-    "cliproxy-pi-bridge", "openai-codex", "disabled",
+    "cliproxy-pi-bridge", "openai-codex", "anthropic", "kimi-coding", "openrouter", "disabled",
   ]);
   return Object.fromEntries(
     Object.entries(value).filter((entry): entry is [string, UsageConfig["providerOverrides"][string]] =>
@@ -65,6 +67,7 @@ export async function loadConfig(): Promise<UsageConfig> {
       adapters: {
         cliproxyPiBridge: { enabled: boolean(parsed.adapters?.cliproxyPiBridge?.enabled, DEFAULT_CONFIG.adapters.cliproxyPiBridge.enabled) },
         openaiCodex: { enabled: boolean(parsed.adapters?.openaiCodex?.enabled, DEFAULT_CONFIG.adapters.openaiCodex.enabled) },
+        nativeOAuth: { enabled: boolean(parsed.adapters?.nativeOAuth?.enabled, DEFAULT_CONFIG.adapters.nativeOAuth.enabled) },
       },
       providerOverrides: providerOverrides(parsed.providerOverrides),
     };

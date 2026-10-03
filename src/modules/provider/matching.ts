@@ -25,6 +25,7 @@ export interface MatchedGroupQuota {
    * they are gathered here.
    */
   multiWindows?: MatchedQuotaItem[];
+  missingWindows?: string[];
 }
 
 export function tokenizeModelId(id: string): string[] {
@@ -88,6 +89,9 @@ export function friendlyGroupName(
 }
 
 export type RawBridgeGroup = {
+  modelGroup?: string;
+  window?: string;
+  source?: string;
   id?: string;
   label?: string;
   remainingFraction?: number;
@@ -102,6 +106,15 @@ export type RawBridgeAccount = {
   unavailable?: boolean;
   rawGroups?: unknown;
 };
+
+export function explicitGroupMatches(group: RawBridgeGroup, modelId: string): boolean {
+  const tokens = tokenizeModelId(modelId);
+  const family = tokens.includes("gemini") ? "gemini" : tokens.some((t) => ["claude", "gpt"].includes(t)) ? "claude-gpt" : undefined;
+  if (group.modelGroup !== family || !family) return false;
+  // Legacy per-model fallback does not establish a shared model-family pool.
+  if (group.source === "fallback") return modelId.toLowerCase().replace(/^ag-/, "") === group.id?.toLowerCase();
+  return true;
+}
 
 function isTemporalWindow(group: RawBridgeGroup): boolean {
   const tokens = tokenizeModelId(`${group.id ?? ""} ${group.label ?? ""}`);
@@ -138,8 +151,9 @@ export function matchModelAcrossAccounts<T extends RawBridgeAccount>(
     for (const group of groups) {
       if (typeof group.remainingFraction !== "number") continue;
 
+      if (group.modelGroup && !explicitGroupMatches(group, targetId)) continue;
       const groupModels = group.models ?? [];
-      let bestScore = 0;
+      let bestScore = group.modelGroup && explicitGroupMatches(group, targetId) ? 100 : 0;
       let matchedModelId: string | undefined;
 
       for (const m of groupModels) {
@@ -220,13 +234,14 @@ export function matchModelAcrossAccounts<T extends RawBridgeAccount>(
     // Check if this matched account specifically has multiple time-window quotas (like 5h and 7d for Codex)
     const groups = Array.isArray(matchedAccount.rawGroups) ? (matchedAccount.rawGroups as RawBridgeGroup[]) : [];
     const timeWindowGroups = groups.filter((g) =>
-      typeof g.remainingFraction === "number" && isTemporalWindow(g)
+      typeof g.remainingFraction === "number" && isTemporalWindow(g) &&
+      (!winner.group.modelGroup || g.modelGroup === winner.group.modelGroup)
     );
 
     let multiWindows: MatchedQuotaItem[] | undefined;
-    if (winner.isTimeWindow && timeWindowGroups.length > 1) {
+    if (winner.isTimeWindow && (timeWindowGroups.length > 1 || winner.group.modelGroup)) {
       multiWindows = timeWindowGroups.map((g) => ({
-        label: friendlyGroupName(g, activeModelId, matchedAccount.provider),
+        label: g.window ?? friendlyGroupName(g, activeModelId, matchedAccount.provider),
         remainingFraction: g.remainingFraction!,
         ...(g.resetTime ? { resetAt: g.resetTime } : {}),
       }));
@@ -235,12 +250,13 @@ export function matchModelAcrossAccounts<T extends RawBridgeAccount>(
     return {
       account: matchedAccount,
       quota: {
-        label: friendlyGroupName(winner.group, activeModelId, winner.account.provider),
+        label: friendlyGroupName(winner.group.modelGroup ? {} : winner.group, activeModelId, winner.account.provider),
         remainingFraction: winner.group.remainingFraction!,
         ...(winner.group.resetTime ? { resetAt: winner.group.resetTime } : {}),
         ...(winner.matchedModelId ? { matchedModelId: winner.matchedModelId } : {}),
         ...(winner.account.provider ? { accountProvider: winner.account.provider } : {}),
         ...(multiWindows ? { multiWindows } : {}),
+        ...(winner.group.modelGroup ? { missingWindows: ["5h", "7d"].filter((w) => !timeWindowGroups.some((g) => g.window === w)) } : {}),
       },
     };
   }
@@ -325,6 +341,7 @@ export function isGroupRelevantToModels(
   configuredModelIds?: string[],
 ): boolean {
   if (!configuredModelIds || configuredModelIds.length === 0) return true;
+  if (group.modelGroup) return configuredModelIds.some((id) => explicitGroupMatches(group, id));
 
   const targetTokens = new Set(configuredModelIds.flatMap(tokenizeModelId));
 
@@ -453,6 +470,7 @@ export function deduplicateSharedQuotaGroups(groups: RawBridgeGroup[]): RawBridg
 
       // Compare remainingFraction and resetTime
       if (
+        !current.modelGroup && !other.modelGroup &&
         typeof current.remainingFraction === "number" &&
         typeof other.remainingFraction === "number" &&
         Math.abs(current.remainingFraction - other.remainingFraction) < 0.0001 &&
