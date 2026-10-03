@@ -2,180 +2,200 @@
 
 # Pi Usage
 
-为 [Pi](https://github.com/earendil-works/pi-mono) 和 [pi-web](https://github.com/agegr/pi-web) 显示原生 OAuth 与 CLIProxyAPI 额度窗口、重置时间，并在本地统计 Skill 使用次数。
+在 [Pi](https://github.com/earendil-works/pi-mono) 和 [pi-web](https://github.com/agegr/pi-web) 中查看当前模型的剩余额度、重置时间，以及本地 Skill 使用次数。
 
-[English](./README_EN.md) · [反馈问题](https://github.com/wayner6/pi-usage/issues)
+[English](./README_EN.md) · [安装](#安装) · [使用](#使用) · [反馈问题](https://github.com/wayner6/pi-usage/issues)
 
 </div>
 
-## 功能概览
+## 功能
 
-Pi Usage 会为当前模型添加一条简洁的状态信息：
+- 在底部显示当前模型的额度，切换模型时同步切换。
+- 用 `/usage` 查看服务商、账户和额度窗口的详情。
+- 用 `/usage skills` 查看已安装 Skill 的累计使用次数，包括从未使用过的 Skill。
+
+状态栏显示示例：
 
 ```text
 Codex · 5h 92% (resets in 2h) · 7d 85% (resets in 5d 3h)
 ```
 
-需要查看详细信息或 Skill 统计时，使用：
+Pi Usage 安装在 Pi / pi-web 中。使用原生 OAuth 时，直接查询服务商额度；使用 CLIProxyAPI（CPA）时，还需在 CPA 服务端安装配套插件。
 
-```text
-/usage
-/usage skills
-```
-
-状态会跟随受支持的当前模型切换。查询 OpenAI Codex、Anthropic、Kimi Code、OpenRouter 的原生 OAuth 额度；CLIProxyAPI 需要兼容的服务端插件。没有额度集成的服务商不显示。网络错误、认证缺失、额度耗尽和真实的零额度会显示为不同状态。
-
-## 使用演示
-
-### 使用 `/usage` 查看服务商详情
-
-<table>
-  <tr>
-    <th>Pi 终端</th>
-    <th>pi-web</th>
-  </tr>
-  <tr>
-    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png" alt="Pi 终端执行 /usage 命令的效果" width="100%"></a></td>
-    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png" alt="pi-web 执行 /usage 命令的效果" width="100%"></a></td>
-  </tr>
-</table>
-
-### 在底部查看当前模型额度
-
-<table>
-  <tr>
-    <th>Pi 终端</th>
-    <th>pi-web</th>
-  </tr>
-  <tr>
-    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png" alt="Pi 终端底部显示当前模型额度" width="100%"></a></td>
-    <td><a href="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png"><img src="https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png" alt="pi-web 底部显示当前模型额度" width="100%"></a></td>
-  </tr>
-</table>
-
-点击图片可查看原图。
+| 你使用的连接方式 | 需要安装 |
+| --- | --- |
+| Pi 原生 OAuth | 本项目 |
+| CPA API Key | 本项目 + 服务端 [pi-usage-cpa](https://github.com/wayner6/pi-usage-cpa#安装) |
 
 ## 安装
 
-可以从 npm 或 GitHub 安装。**GitHub `0.6.0` 支持 `pi-usage-cpa` 七类额度；npm `latest` 仍为旧版 `0.3.0`，不支持此插件。**
+推荐从 GitHub 安装，当前版本为 **0.6.1**。npm latest 仍是旧版 `0.3.0`，不支持新的 CPA 服务端插件。
+
+### pi-web
+
+1. 打开 **设置 → 插件 → 添加插件**。
+2. 作用域选择 `global`，填写来源：
+
+   ```text
+   git:https://github.com/wayner6/pi-usage
+   ```
+
+3. 安装后重新加载当前会话。
+
+如果已安装 npm 版，先移除旧插件，再添加 GitHub 来源，避免同时加载两份。
 
 ### Pi 终端
 
 ```bash
-# npm
-pi install npm:@wayner6/pi-usage
-
-# GitHub
 pi install github:wayner6/pi-usage
 ```
 
-### pi-web
+安装后重新加载当前会话。
 
-打开 **设置 > 插件 > 添加插件**，作用域选择 `global`，然后填写其中一个来源：
+<details>
+<summary>旧 npm 版安装方式</summary>
+
+npm `0.3.0` 不具备本文所述的新版 CPA 集成。需要该功能时，请使用上面的 GitHub 来源。
+
+Pi 终端：
+
+```bash
+pi install npm:@wayner6/pi-usage
+```
+
+pi-web 插件来源：
 
 ```text
 npm:@wayner6/pi-usage
 ```
 
-```text
-git:https://github.com/wayner6/pi-usage
-```
+</details>
 
-安装或更新后，请重新加载当前会话。
+### 使用 CPA 的额外步骤
 
-## 命令
+1. 在 CPA 服务端按 [pi-usage-cpa 安装说明](https://github.com/wayner6/pi-usage-cpa#安装)安装 **v0.2.3 或更新版本**。
+2. 在 Pi / pi-web 中使用已有的 CPA 模型配置和普通 API Key。管理密钥只配置在服务端。
+3. 选择 CPA 模型，执行 `/usage doctor`。适配器应为 `pi-usage-cpa`；再用 `/usage current` 查看额度。
 
-Pi Usage 只注册 `/usage` 这一个命令。
+原生 OAuth 用户不需要安装服务端插件。
 
-| 命令 | 作用 |
-| --- | --- |
-| `/usage` | 查看支持的原生 OAuth 与 CLIProxyAPI 服务商 |
-| `/usage all` | 与 `/usage` 相同 |
-| `/usage current` | 只查看当前模型所属服务商 |
-| `/usage refresh` | 跳过缓存，立即刷新当前服务商 |
-| `/usage doctor` | 查看当前模型、适配器、认证状态和桥接诊断 |
-| `/usage skills` | 列出所有已安装 Skill 及其累计使用次数，包括零次 |
-| `/usage settings` | 查看插件设置和配置文件位置 |
+## 使用
 
-### Skill 计数方式
-
-Pi 暂时没有提供独立的 `skill_invoked` 事件。Pi Usage 会在以下两种情况下识别一次 Skill 激活：
-
-1. `/skill:name` 命令被 Pi 接收并进入 Agent Run（提交失败或队列取消不计数）。
-2. 模型成功读取 Pi 已发现 Skill 的入口文件。
-
-同一个 Agent Run 内，同一 Skill 只计一次。因此，先执行 `/skill:name`，随后模型再读取它的 `SKILL.md`，最终只增加一次，不会重复计数。
-
-统计从安装并开启该功能后开始，不会扫描旧会话。`/usage skills` 会列出 Pi 当前发现的全部 Skill，从未使用过的 Skill 显示为 `0`。
-
-## 服务商支持
-
-| 服务商 | 支持级别 | 认证方式 | 显示内容 |
-| --- | --- | --- | --- |
-| OpenAI Codex | 完整额度 | ChatGPT OAuth | 主额度的 5 小时、7 天窗口，以及接口返回的额外模型额度 |
-| Anthropic | OAuth 用量接口（未公开文档，可能限流） | Pi 的 Claude Pro/Max OAuth | 5 小时、7 天及实际返回的模型专属周额度 |
-| Kimi Code | OAuth 用量接口（未公开文档） | Pi `kimi-coding` OAuth | 7 天及实际返回的滚动 5 小时额度 |
-| OpenRouter | Key 级限额 | Pi OpenRouter OAuth（换取 API Key） | Key 消费上限及免费模型日请求额度（若存在）；**不是**账户余额或订阅额度 |
-| CLIProxyAPI | 取决于上游 | 代理 API Key 与服务端 `pi-usage-cpa` | GitHub 0.6.0 对 Antigravity、Claude、Codex、Kimi、xAI、Devin、Meta 逐账户展示真实可得额度；部分账号无可查询额度则显示不可用 |
-
-没有可用额度查询的服务商不会凭空显示额度。CPA 只展示 `pi-usage-cpa` 返回、且能按当前模型匹配的额度组；需配合服务端 `pi-usage-cpa v0.2.0`；仅安装客户端或使用服务端 v0.1.0 都无法显示新增六类。
-
-### 服务商数据如何处理
-
-原生 OAuth 凭据由 Pi 解析；额度请求只发送到各服务商固定的官方域名，且不跨域跟随重定向。ChatGPT OAuth 使用官方 ChatGPT 域名查询，不使用普通 API Key。账户 ID 从当前解析的 OAuth token 获取，不再另读认证文件。额外模型额度在 `/usage` 详情中展示；简洁状态仍以主额度窗口为主。只有服务商返回重置时间时，插件才会显示倒计时。
-
-对 CLIProxyAPI，需在服务端安装 [`pi-usage-cpa`](https://github.com/wayner6/pi-usage-cpa)。客户端**仅请求** `/v0/resource/plugins/pi-usage-cpa/usage`；若未安装则显示 `Bridge Not Found`，不回退其他插件。真实 CPA v8 上游响应和 Docker Compose 部署尚未实测，不保证每个账户均返回额度。Pi Usage 使用普通代理 API Key，不会请求或保存 CLIProxyAPI Management Key。界面只展示 `pi-usage-cpa` 返回的脱敏账户及明确额度窗口；xAI 健康探测、余额或未知窗口不能冒充 5h/7d。
-
-GitHub `0.6.1` 区分 OpenAI GPT 与 GPT-OSS：Antigravity 的共享额度只匹配 Claude 和 GPT-OSS，其他 GPT 模型匹配 Codex，不因 `GPT` 关键词借用 Antigravity 额度。多个匹配账户仍显示 `routing account unknown`。降级数据只匹配特定模型，未知窗口不会拆成 5 小时和周额度。
-
-## 状态说明
-
-| 状态 | 含义 |
-| --- | --- |
-| `Unauthorized` | Pi 没有解析到有效凭据，或服务商拒绝了凭据 |
-| `No Quota` | 接口未返回可识别的额度字段，不代表余额为零 |
-| `Bridge Not Found` | CLIProxyAPI 可以访问，但 `pi-usage-cpa` 接口不可用 |
-| `stale` | 本次刷新失败，当前显示的是上次成功获取的数据 |
-| `0%` | 服务商成功返回了真实的零额度 |
-
-## 设置
+先选择已配置且受支持的模型，然后输入：
 
 ```text
-/usage settings status on|off       # 简洁状态信息，默认开启
-/usage settings widget on|off       # 输入框下方的详细信息，默认关闭
-/usage settings skills on|off       # 本地 Skill 计数，默认开启
-/usage settings interval <秒数>     # 自动刷新间隔，30 到 3600，默认 120
-/usage settings timeout <秒数>      # 请求超时，2 到 60，默认 10
+/usage current
 ```
 
-本地文件位置：
+底部默认显示简洁额度。如需输入框下方的详细信息，可开启 widget：
+
+```text
+/usage settings widget on
+```
+
+### 命令
+
+| 命令 | 用途 |
+| --- | --- |
+| `/usage` 或 `/usage all` | 查看所有受支持的已配置服务商 |
+| `/usage current` | 查看当前模型所属服务商 |
+| `/usage refresh` | 跳过客户端缓存，刷新当前服务商；服务端仍可能限流 |
+| `/usage doctor` | 查看当前模型、适配器和认证状态，排查连接问题 |
+| `/usage skills` | 查看所有已安装 Skill 的累计使用次数 |
+| `/usage settings` | 查看设置和本地文件位置 |
+
+### Skill 如何计数
+
+以下任一情况记为一次使用：被接受的 `/skill:name` 命令进入 Agent Run，或模型成功读取 Pi 已发现 Skill 的入口文件。同一个 Agent Run 内，同一 Skill 只计一次；失败、取消的命令和失败的读取不计数。
+
+计数从安装并开启统计后开始，不扫描旧会话。日志只保存 Skill 名称和时间，不保存对话或文件内容。
+
+### 界面预览
+
+<details>
+<summary>查看 Pi 终端和 pi-web 截图</summary>
+
+| | Pi 终端 | pi-web |
+| --- | --- | --- |
+| `/usage` 详情 | [![Pi 终端额度详情][pi-details]][pi-details] | [![pi-web 额度详情][web-details]][web-details] |
+| 底部状态 | [![Pi 终端底部状态][pi-status]][pi-status] | [![pi-web 底部状态][web-status]][web-status] |
+
+点击图片查看原图。
+
+</details>
+
+[pi-details]: https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png
+[web-details]: https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA3.png
+[pi-status]: https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/pi%E7%BB%88%E7%AB%AF%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png
+[web-status]: https://pub-c84d97a350ed4cc28061354413a4fd68.r2.dev/2026/08/Pi-web%E6%8F%92%E4%BB%B6%E6%BC%94%E7%A4%BA1.png
+
+## 支持的服务商
+
+### 原生 OAuth
+
+使用 Pi 已解析的 OAuth 凭据，无需另填额度查询密钥。
+
+| 服务商 | 可显示的数据 |
+| --- | --- |
+| OpenAI Codex | 主额度的 5h、7d，以及接口返回的额外模型额度 |
+| Anthropic | 5h、7d 和模型专属周额度；接口未公开文档，可能限流 |
+| Kimi Code | 7d 及实际返回的滚动 5h；接口未公开文档 |
+| OpenRouter | Key 消费上限和免费模型日请求额度（若有），不是账户余额 |
+
+### 通过 CPA
+
+支持服务端插件返回的 Antigravity、Claude、Codex、Kimi、xAI、Devin、Meta 额度。各服务商的数据范围见 [服务端支持表](https://github.com/wayner6/pi-usage-cpa#支持的服务商)。
+
+Antigravity 的共享额度匹配 Claude 和 GPT-OSS；其他 GPT 模型匹配 Codex。多个账户都能匹配当前模型、但实际路由账户未知时，会显示 `N accounts · routing account unknown`，不会任意选一个或合并额度。
+
+额度和重置时间只展示上游实际返回的数据。未知窗口保留 `window unknown`，不会从重置时间或余额推算 5h / 7d；没有可查询额度的服务商不显示额度。
+
+## 设置与更新
+
+```text
+/usage settings status on|off       # 简洁状态，默认开启
+/usage settings widget on|off       # 详细信息，默认关闭
+/usage settings skills on|off       # Skill 统计，默认开启
+/usage settings interval <秒数>     # 自动刷新：30–3600 秒，默认 120
+/usage settings timeout <秒数>      # 请求超时：2–60 秒，默认 10
+```
+
+本地配置与统计日志：
 
 ```text
 ~/.pi/agent/pi-usage/config.json
 ~/.pi/agent/pi-usage/skill-usage.jsonl
 ```
 
-Skill 日志采用追加写入，只保存 Skill 名称和时间。
-
-## 更新
+pi-web 在 **设置 → 插件** 中更新 Pi Usage。Pi 终端可更新全部扩展，而不更新 Pi 本身：
 
 ```bash
-# 更新通过 npm 安装的 Pi Usage
-pi update npm:@wayner6/pi-usage
-
-# 更新全部扩展，但不更新 Pi 本身
 pi update --extensions
 ```
 
-在 pi-web 中，打开 **设置 > 插件**，更新 Pi Usage，然后重新加载会话。
+旧 npm 安装可用 `pi update npm:@wayner6/pi-usage` 更新，但不会切换到 GitHub 来源。更新后都需重新加载会话。
+
+## 常见问题
+
+遇到问题先执行 `/usage doctor`，确认当前模型、适配器和认证状态。
+
+| 显示内容 | 含义与处理 |
+| --- | --- |
+| `Unauthorized` | 未解析到有效凭据，或请求被拒绝；检查登录状态或普通 CPA API Key |
+| `Bridge Not Found` | CPA 插件接口不可用；检查服务端插件是否已注册、生效。客户端不会回退 `pi-bridge` |
+| `No Quota` / `unavailable` | 没有可识别或可匹配的额度，不表示余额为零 |
+| `window unknown` | 有额度比例，但上游没有明确窗口 |
+| `routing account unknown` | 多个账户都可匹配，尚不知道实际路由账户 |
+| `stale` | 本次刷新失败，暂时保留上次成功的数据 |
+| `0%` | 上游确实返回了零剩余额度 |
+
+CPA 场景中，服务商的 `[ok]` 表示插件响应可读取；账户仍可能单独返回额度查询错误。请结合 `/usage` 中的账户信息判断。
 
 ## 隐私与安全
 
-Pi Usage 不使用浏览器 Cookie、遥测或云同步，也不会把凭据发送到第三方域名。原生 OAuth 请求只发送到各自官方域名，CLIProxyAPI 请求只发送到已配置的代理源站。
+原生 OAuth 额度请求只发送到服务商的固定官方源站，认证请求不跨域跟随重定向。CPA 请求只发送到已配置的代理源站，使用普通 API Key；客户端不请求或保存 CPA 管理密钥。
 
-Skill 统计不会保存提示词、对话内容、工具输出或 Skill 文件内容。
-
-安全问题请参考 [SECURITY.md](./SECURITY.md)。
+不使用浏览器 Cookie、遥测或云同步。Skill 统计不保存提示词、对话、工具输出或 Skill 文件内容。安全问题请参阅 [SECURITY.md](./SECURITY.md)。
 
 ## 开发
 
@@ -185,9 +205,7 @@ npm run verify
 npm run pack:check
 ```
 
-`npm run verify` 会执行 TypeScript 检查和完整测试。提交修改前请阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。
-
-## 社区
+`verify` 执行 TypeScript 检查和测试；`pack:check` 检查打包内容。贡献说明见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 感谢 [LINUX DO](https://linux.do/) 社区参与测试和讨论。
 
