@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { loadConfig, type UsageConfig } from "./core/config.ts";
-import type { UsageSnapshot } from "./core/types.ts";
+import type { ProviderTarget, UsageSnapshot } from "./core/types.ts";
 import { ProviderUsageController } from "./modules/provider/controller.ts";
 import { SkillUsageController } from "./modules/skills/controller.ts";
 import { showDetails } from "./ui/details.ts";
@@ -27,10 +27,6 @@ export default function (pi: ExtensionAPI) {
     return model ? `${model.provider}/${model.id}/${model.baseUrl}` : undefined;
   }
 
-  function liveModel(ctx: ExtensionContext): Model<Api> | undefined {
-    return ctx.model;
-  }
-
   function displayOrigin(baseUrl: string | undefined): string {
     if (!baseUrl) return "not exposed by model";
     try {
@@ -47,19 +43,18 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.setWidget(WIDGET_ID, config.display.widget && current ? snapshotLines(current) : undefined, { placement: "belowEditor" });
   }
 
-  async function refreshCurrent(ctx: ExtensionContext, force = false, model: Model<Api> | undefined = liveModel(ctx)): Promise<UsageSnapshot | undefined> {
+  async function refreshCurrent(ctx: ExtensionContext, force = false, model: Model<Api> | undefined = ctx.model): Promise<UsageSnapshot | undefined> {
     lastContext = ctx;
     const generation = ++renderGeneration;
+    let target: ProviderTarget | undefined;
     try {
-      // If we already have a cached snapshot for this provider, render it immediately
-      // with group recalculation so model switches are instant without flicker.
-      const cached = model ? controller.cache.values().find((item) => item.sourceProviderId === model.provider) : undefined;
-      render(ctx, cached, model);
-      const snapshot = await controller.refreshCurrent(ctx, force, model);
+      target = model ? await controller.target(ctx, model.provider, model) : undefined;
+      if (generation === renderGeneration) render(ctx, target ? controller.cached(target) : undefined, model);
+      const snapshot = target ? await controller.fetchTarget(target, force) : undefined;
       if (generation === renderGeneration) render(ctx, snapshot, model);
       return snapshot;
     } catch (error) {
-      const fallback = model ? controller.cache.values().find((item) => item.sourceProviderId === model.provider) : undefined;
+      const fallback = target ? controller.cached(target) : undefined;
       const failure: UsageSnapshot | undefined = fallback ?? (model ? {
         adapterId: "none",
         sourceProviderId: model.provider,
@@ -79,7 +74,7 @@ export default function (pi: ExtensionAPI) {
     timer = setInterval(() => { if (lastContext) void refreshCurrent(lastContext); }, config.refresh.intervalSeconds * 1000);
     timer.unref?.();
     lastContext = ctx;
-    observedModelKey = modelKey(liveModel(ctx));
+    observedModelKey = modelKey(ctx.model);
 
     // pi-web versions can update ctx.model without reliably delivering model_select
     // to package extensions. This watcher performs no network I/O unless the model
@@ -87,7 +82,7 @@ export default function (pi: ExtensionAPI) {
     if (modelWatchTimer) clearInterval(modelWatchTimer);
     modelWatchTimer = setInterval(() => {
       if (!lastContext) return;
-      const nextModel = liveModel(lastContext);
+      const nextModel = lastContext.model;
       const nextKey = modelKey(nextModel);
       if (nextKey === observedModelKey) return;
       observedModelKey = nextKey;
@@ -106,8 +101,7 @@ export default function (pi: ExtensionAPI) {
       controller.setConfig(config);
       if (!config.skills.enabled) skillController.finishRun();
       startTimer(ctx);
-      const cached = ctx.model ? controller.cache.values().find((item) => item.sourceProviderId === ctx.model?.provider) : undefined;
-      render(ctx, cached);
+      await refreshCurrent(ctx);
       return;
     }
     if (action === "skills") {
@@ -127,7 +121,7 @@ export default function (pi: ExtensionAPI) {
         `Provider base URL: ${displayOrigin(ctx.model?.baseUrl)}`,
         `Current adapter: ${current?.adapterId ?? "none"}`,
         `Current state: ${current?.state ?? "unavailable"}`,
-        `Current auth: ${current?.state === "unauthorized" ? "missing or rejected" : "resolved without displaying secret"}`,
+        `Current auth: ${current?.state === "unauthorized" ? "missing or rejected" : current?.state === "ok" || current?.state === "stale" ? "resolved without displaying secret" : "not confirmed"}`,
         `Hint: /usage current shows only ${ctx.model?.provider ?? "the active provider"}; use /usage all for supported configured providers.`,
         ...(current?.error ? [`Problem: ${current.error}`] : []),
         ...(current?.state === "not-installed" ? ["Fix: install and enable pi-usage-cpa on the CLIProxyAPI server."] : []),
@@ -188,8 +182,6 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("model_select", async (event, ctx) => {
     observedModelKey = modelKey(event.model);
-    const cached = event.model ? controller.cache.values().find((item) => item.sourceProviderId === event.model.provider) : undefined;
-    render(ctx, cached, event.model);
     await refreshCurrent(ctx, false, event.model);
   });
   pi.on("session_shutdown", async () => {

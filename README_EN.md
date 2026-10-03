@@ -29,7 +29,7 @@ Install Pi Usage in Pi / pi-web. Native OAuth connections query the provider dir
 
 ## Install
 
-Install from GitHub. The current version is **0.6.1**.
+Install from GitHub. The current version is **0.6.2**.
 
 ### pi-web
 
@@ -52,7 +52,7 @@ Reload the current session after installation.
 
 ### Additional steps for CPA
 
-1. Install **v0.2.3 or later** on the CPA server using the [pi-usage-cpa installation guide](https://github.com/wayner6/pi-usage-cpa#安装).
+1. Install **v0.2.4 or later** on the CPA server using the [pi-usage-cpa installation guide](https://github.com/wayner6/pi-usage-cpa#安装).
 2. Keep your existing CPA model configuration and normal API key in Pi / pi-web. The management key belongs only on the server.
 3. Select a CPA model and run `/usage doctor`. The adapter should be `pi-usage-cpa`. Use `/usage current` to check its quota.
 
@@ -172,7 +172,7 @@ For CPA, a provider marked `[ok]` means the plugin response was readable. Indivi
 
 ## Privacy and security
 
-Native OAuth quota requests use fixed official provider origins, and authenticated requests do not follow cross-origin redirects. CPA requests use only the configured proxy origin and normal API key. The client never requests or stores the CPA management key.
+Client caches are scoped to origin, credentials, and model configuration. Connection changes do not reuse another account's quota, and a network failure does not abort queries for other providers. Native OAuth quota requests use fixed official provider origins, and authenticated requests do not follow cross-origin redirects. CPA requests use only the configured proxy origin and normal API key. The client never requests or stores the CPA management key.
 
 No browser cookies, telemetry, or cloud synchronization. Skill counting does not store prompts, conversations, tool output, or Skill contents. See [SECURITY.md](./SECURITY.md) for security reports.
 

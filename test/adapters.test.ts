@@ -31,6 +31,22 @@ test("Codex OAuth parses 5h and 7d windows", async () => {
   assert.match(snapshot.summary ?? "", /^Codex · 5h 99% \(.+\) · 7d 78% \(.+\)$/);
 });
 
+test("Codex requires explicit window duration and rejects invalid percentages", async () => {
+  const target = { providerId: "openai-codex", auth: { auth: { apiKey: "synthetic-token" }, source: "oauth" } };
+  const unknown = await openAICodexAdapter.fetch({ target, signal, force: false, fetchFn: async () => Response.json({ rate_limit: {
+    primary_window: { used_percent: 20 }, secondary_window: { used_percent: 40, limit_window_seconds: 123 },
+  } }) });
+  assert.deepEqual(unknown.accounts[0]?.metrics.map((m) => m.label), ["Codex quota (window unknown)", "Codex quota (window unknown)"]);
+  assert.doesNotMatch(unknown.summary ?? "", /5h|7d/);
+  for (const used of [-1, 101, null]) {
+    const invalid = await openAICodexAdapter.fetch({ target, signal, force: false, fetchFn: async () => Response.json({ rate_limit: {
+      primary_window: { used_percent: used, limit_window_seconds: 18000 },
+    } }) });
+    assert.equal(invalid.state, "empty");
+    assert.equal(invalid.accounts[0]?.metrics.length, 0);
+  }
+});
+
 test("Codex binds the account header to the resolved OAuth token", async () => {
   const token = (account: string) => `header.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: account } })).toString("base64url")}.signature`;
   const seen: string[] = [];

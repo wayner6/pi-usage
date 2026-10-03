@@ -29,7 +29,7 @@ Pi Usage 安装在 Pi / pi-web 中。使用原生 OAuth 时，直接查询服务
 
 ## 安装
 
-从 GitHub 安装，当前版本为 **0.6.1**。
+从 GitHub 安装，当前版本为 **0.6.2**。
 
 ### pi-web
 
@@ -52,7 +52,7 @@ pi install github:wayner6/pi-usage
 
 ### 使用 CPA 的额外步骤
 
-1. 在 CPA 服务端按 [pi-usage-cpa 安装说明](https://github.com/wayner6/pi-usage-cpa#安装)安装 **v0.2.3 或更新版本**。
+1. 在 CPA 服务端按 [pi-usage-cpa 安装说明](https://github.com/wayner6/pi-usage-cpa#安装)安装 **v0.2.4 或更新版本**。
 2. 在 Pi / pi-web 中使用已有的 CPA 模型配置和普通 API Key。管理密钥只配置在服务端。
 3. 选择 CPA 模型，执行 `/usage doctor`。适配器应为 `pi-usage-cpa`；再用 `/usage current` 查看额度。
 
@@ -172,7 +172,7 @@ CPA 场景中，服务商的 `[ok]` 表示插件响应可读取；账户仍可�
 
 ## 隐私与安全
 
-原生 OAuth 额度请求只发送到服务商的固定官方源站，认证请求不跨域跟随重定向。CPA 请求只发送到已配置的代理源站，使用普通 API Key；客户端不请求或保存 CPA 管理密钥。
+客户端缓存按源站、凭据和模型配置隔离；更换连接时不会复用其他账户的额度，网络错误也不会中断其他服务商查询。原生 OAuth 额度请求只发送到服务商的固定官方源站，认证请求不跨域跟随重定向。CPA 请求只发送到已配置的代理源站，使用普通 API Key；客户端不请求或保存 CPA 管理密钥。
 
 不使用浏览器 Cookie、遥测或云同步。Skill 统计不保存提示词、对话、工具输出或 Skill 文件内容。安全问题请参阅 [SECURITY.md](./SECURITY.md)。
 

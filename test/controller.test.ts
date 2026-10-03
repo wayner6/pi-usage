@@ -41,6 +41,57 @@ test("controller.refreshAll queries Codex OAuth and pi-usage-cpa, filtering unre
   assert.equal(snapshots.find((s) => s.displayName === "OpenAI Codex")?.accounts[0]?.metrics.length, 2);
 });
 
+test("controller isolates cached and pending queries by origin, credential and configured models", async () => {
+  let calls = 0;
+  let fail = false;
+  const controller = new ProviderUsageController(DEFAULT_CONFIG, async () => {
+    calls++;
+    if (fail) throw new Error("offline Bearer synthetic-secret");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return Response.json({ schemaVersion: 1, accounts: [] });
+  });
+  const first = { providerId: "MyCPA", baseUrl: "https://one.example/v1", auth: { auth: { apiKey: "synthetic-one" }, source: "config" } };
+  const second = { ...first, auth: { auth: { apiKey: "synthetic-two" }, source: "config" } };
+  await Promise.all([controller.fetchTarget(first), controller.fetchTarget(second)]);
+  assert.equal(calls, 2);
+  assert.ok(controller.cached(first));
+  assert.ok(controller.cached(second));
+  assert.equal(controller.cached({ ...first, baseUrl: "https://two.example/v1" }), undefined);
+  assert.equal(controller.cached({ ...first, configuredModelIds: ["gpt-6.1-sol"] }), undefined);
+  assert.equal(controller.cached({ ...first, authError: "resolver failed" }), undefined);
+  fail = true;
+  const other = await controller.fetchTarget({ ...first, auth: { auth: { apiKey: "synthetic-third" }, source: "config" } });
+  assert.equal(other.state, "unavailable");
+  assert.doesNotMatch(other.error ?? "", /synthetic-secret/);
+  assert.equal((await controller.fetchTarget(first)).state, "stale");
+});
+
+test("fractional timeout settings produce valid integer millisecond deadlines", async () => {
+  const config = structuredClone(DEFAULT_CONFIG);
+  config.refresh.timeoutSeconds = 2.01;
+  const controller = new ProviderUsageController(config, async () => Response.json({ schemaVersion: 1, accounts: [] }));
+  const result = await controller.fetchTarget({ providerId: "MyCPA", baseUrl: "https://cpa.example/v1", auth: { auth: { apiKey: "synthetic-key" } } as any });
+  assert.equal(result.state, "empty");
+});
+
+test("one failed provider does not abort refreshAll", async () => {
+  const controller = new ProviderUsageController(DEFAULT_CONFIG, async (url) => {
+    if (String(url).includes("chatgpt.com")) throw new Error("offline");
+    return Response.json({ schemaVersion: 1, accounts: [] });
+  });
+  const ids = ["MyCPA", "openai-codex"];
+  const ctx: any = { modelRegistry: {
+    getAll: () => [], getAvailable: () => [], getRegisteredProviderIds: () => ids,
+    getProviderAuthStatus: (id: string) => ({ configured: ids.includes(id) }),
+    getProvider: (id: string) => id === "MyCPA" ? { baseUrl: "https://cpa.example/v1" } : undefined,
+    getProviderAuth: async (id: string) => ({ auth: { apiKey: "synthetic-key" }, source: id === "MyCPA" ? "config" : "oauth" }),
+  } };
+  const result = await controller.refreshAll(ctx);
+  assert.equal(result.length, 2);
+  assert.equal(result.find((s) => s.sourceProviderId === "openai-codex")?.state, "unavailable");
+  assert.equal(result.find((s) => s.sourceProviderId === "MyCPA")?.state, "empty");
+});
+
 test("unsupported providers never leave the footer at Loading", async () => {
   const controller = new ProviderUsageController(DEFAULT_CONFIG);
   const model = { id: "gemini-3.1-pro-preview", provider: "google-vertex", baseUrl: "https://us-central1-aiplatform.googleapis.com" };

@@ -1,4 +1,5 @@
 import type { UsageSnapshot } from "./types.ts";
+import { safeError } from "./security.ts";
 
 export class UsageCache {
   private snapshots = new Map<string, UsageSnapshot>();
@@ -8,37 +9,36 @@ export class UsageCache {
     return this.snapshots.get(key);
   }
 
-  values(): UsageSnapshot[] {
-    return [...this.snapshots.values()];
-  }
-
   async coalesce(key: string, operation: () => Promise<UsageSnapshot>): Promise<UsageSnapshot> {
-    const existing = this.pending.get(key);
+    // Capture this cache generation so clear() also isolates unfinished requests.
+    const snapshots = this.snapshots;
+    const pending = this.pending;
+    const existing = pending.get(key);
     if (existing) return existing;
     const promise = operation()
       .then((snapshot) => {
-        this.snapshots.set(key, snapshot);
+        snapshots.set(key, snapshot);
         return snapshot;
       })
       .catch((error) => {
-        const old = this.snapshots.get(key);
-        if (!old) throw error;
+        const old = snapshots.get(key);
+        if (!old) throw new Error(safeError(error));
         const stale: UsageSnapshot = {
           ...old,
           state: "stale",
           stale: true,
-          error: error instanceof Error ? error.message : String(error),
+          error: safeError(error),
         };
-        this.snapshots.set(key, stale);
+        snapshots.set(key, stale);
         return stale;
       })
-      .finally(() => this.pending.delete(key));
-    this.pending.set(key, promise);
+      .finally(() => pending.delete(key));
+    pending.set(key, promise);
     return promise;
   }
 
   clear(): void {
-    this.snapshots.clear();
-    this.pending.clear();
+    this.snapshots = new Map();
+    this.pending = new Map();
   }
 }

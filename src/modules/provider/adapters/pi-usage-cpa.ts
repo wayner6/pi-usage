@@ -3,7 +3,6 @@ import { isUrlOnDomain, safeError, sameOriginFetch, cpaUsageUrl } from "../../..
 import { isGroupRelevantToModels, type CpaGroup } from "../matching.ts";
 
 const CPA_PROVIDERS = new Set(["antigravity", "claude", "codex", "kimi", "xai", "devin", "meta"]);
-const CPA_GROUPS = new Set(["gemini", "claude-gpt", "claude", "codex", "kimi", "xai", "devin", "meta"]);
 
 const NATIVE_PROVIDER_IDS = new Set([
   "deepseek", "openai-codex", "xai", "anthropic", "glm", "zai", "zai-coding-cn",
@@ -67,8 +66,6 @@ export const piUsageCpaAdapter: UsageAdapter = {
         const groups = (Array.isArray(account.groups) ? account.groups : [])
           .filter((g) => g && typeof g.id === "string" && typeof g.label === "string" &&
             ((g.source === "summary" && (!g.window || ["5h", "7d", "daily", "monthly"].includes(g.window))) || (g.source === "fallback" && !g.window && account.provider === "antigravity")) &&
-            CPA_GROUPS.has(g.modelGroup ?? "") &&
-            ((account.provider === "antigravity" && ["gemini", "claude-gpt"].includes(g.modelGroup)) || (account.provider !== "antigravity" && g.modelGroup === account.provider)) &&
             typeof g.remainingFraction === "number" && Number.isFinite(g.remainingFraction) && g.remainingFraction >= 0 && g.remainingFraction <= 1)
           .filter((g) => isGroupRelevantToModels(g, target.configuredModelIds));
         const metrics: Metric[] = groups.map((g) => ({ kind: "quota-window", id: g.id, label: g.label, remainingFraction: g.remainingFraction, ...(g.resetTime ? { resetAt: g.resetTime } : {}) }));
@@ -80,7 +77,7 @@ export const piUsageCpaAdapter: UsageAdapter = {
           ...(Array.isArray(account.missingWindows) ? { missingWindows: account.missingWindows } : {}),
           metrics, rawGroups: groups,
         };
-      }).filter((account) => !target.configuredModelIds?.length || account.metrics.length > 0 || account.missingWindows?.length);
+      }).filter((account) => !target.configuredModelIds?.length || account.metrics.length > 0 || account.missingWindows?.length || account.error || account.disabled || account.unavailable);
       return {
         adapterId: this.id, sourceProviderId: target.providerId, displayName: target.providerId,
         state: accounts.length ? (data.cache?.stale ? "stale" : "ok") : "empty",

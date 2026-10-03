@@ -81,6 +81,33 @@ test("CPA fallback stays model-specific and missing windows remain unavailable",
   assert.match(view(empty, "gemini-pro-test")?.summary ?? "", /5h unavailable · 7d unavailable/);
 });
 
+test("CPA current and ambiguous views filter detail metrics to the active model", () => {
+  const s = snapshot();
+  s.accounts[0]!.metrics = groups.map((g) => ({ kind: "quota-window", id: g.id, label: g.label, remainingFraction: g.remainingFraction }));
+  assert.deepEqual(view(s, "claude-opus-test")?.accounts[0]?.metrics.map((m) => m.id), ["claude-gpt-5h", "claude-gpt-7d"]);
+  assert.deepEqual(view(s, "gemini-pro-test")?.accounts[0]?.metrics.map((m) => m.id), ["gemini-5h", "gemini-7d"]);
+  s.accounts.push({ ...s.accounts[0]!, id: "synthetic-second" });
+  const ambiguous = view(s, "claude-opus-test");
+  assert.equal(ambiguous?.summary, "2 accounts · routing account unknown");
+  assert.ok(ambiguous?.accounts.every((a) => a.metrics.length === 2 && a.metrics.every((m) => m.id.startsWith("claude-gpt"))));
+  assert.equal(s.accounts[0]!.metrics.length, 4); // Do not mutate the shared cached snapshot.
+});
+
+test("CPA account diagnostics survive configured-model filtering", async () => {
+  const accounts = [
+    { provider: "codex", groups: [], error: "quota unavailable" },
+    { provider: "codex", groups: [], disabled: true },
+    { provider: "codex", groups: [], unavailable: true },
+  ];
+  const result = await piUsageCpaAdapter.fetch({ target: {
+    providerId: "MyCPA", baseUrl: "https://cpa.example.com/v1", configuredModelIds: ["gpt-6.1-sol"],
+    auth: { auth: { apiKey: "synthetic-key" } } as any,
+  }, signal: AbortSignal.timeout(1000), force: false, fetchFn: async () => Response.json({ schemaVersion: 1, accounts }) });
+  assert.equal(result.accounts.length, 3);
+  assert.equal(result.accounts[0]?.error, "quota unavailable");
+  assert.ok(result.accounts.every((a) => a.metrics.length === 0));
+});
+
 test("CPA errors remain visible instead of being rendered as missing quota", () => {
   const s = snapshot([]);
   s.state = "not-installed";

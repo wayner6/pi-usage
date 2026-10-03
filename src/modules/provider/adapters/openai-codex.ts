@@ -32,7 +32,7 @@ interface WhamRateLimit {
   secondary_window?: WhamWindow | null;
 }
 
-function windowLabel(window: WhamWindow | null | undefined, fallback: string): string {
+function windowLabel(window: WhamWindow): string {
   const seconds = window?.limit_window_seconds;
   if (seconds === 18_000) return "Codex 5h";
   if (seconds === 604_800) return "Codex 7d";
@@ -40,17 +40,15 @@ function windowLabel(window: WhamWindow | null | undefined, fallback: string): s
     if (seconds % 86_400 === 0) return `Codex ${seconds / 86_400}d`;
     if (seconds % 3_600 === 0) return `Codex ${seconds / 3_600}h`;
   }
-  return fallback;
+  return "Codex quota (window unknown)";
 }
 
 function parseWindow(
   window: WhamWindow | null | undefined,
   defaultId: string,
-  defaultLabel: string,
 ): Metric | undefined {
-  if (!window || typeof window.used_percent !== "number" || !Number.isFinite(window.used_percent)) return undefined;
-  const used = Math.min(100, Math.max(0, window.used_percent));
-  const remainingFraction = Math.max(0, (100 - used) / 100);
+  if (!window || typeof window.used_percent !== "number" || !Number.isFinite(window.used_percent) || window.used_percent < 0 || window.used_percent > 100) return undefined;
+  const remainingFraction = (100 - window.used_percent) / 100;
 
   let resetAt: string | undefined;
   if (typeof window.reset_at === "number" && window.reset_at > 0) {
@@ -64,7 +62,7 @@ function parseWindow(
   return {
     kind: "quota-window",
     id: defaultId,
-    label: windowLabel(window, defaultLabel),
+    label: windowLabel(window),
     remainingFraction,
     ...(resetAt ? { resetAt } : {}),
   };
@@ -144,10 +142,10 @@ export const openAICodexAdapter: UsageAdapter = {
       const data = (await response.json()) as WhamUsageResponse;
       const metrics: Metric[] = [];
 
-      const primary = parseWindow(data.rate_limit?.primary_window, "primary-window", "Codex 5h");
+      const primary = parseWindow(data.rate_limit?.primary_window, "primary-window");
       if (primary) metrics.push(primary);
 
-      const secondary = parseWindow(data.rate_limit?.secondary_window, "secondary-window", "Codex 7d");
+      const secondary = parseWindow(data.rate_limit?.secondary_window, "secondary-window");
       if (secondary) metrics.push(secondary);
       const ordinaryMetrics = metrics.length;
 
@@ -158,7 +156,7 @@ export const openAICodexAdapter: UsageAdapter = {
         const name = (typeof rawName === "string" ? rawName : `Additional ${index + 1}`)
           .replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, 80) || `Additional ${index + 1}`;
         for (const [position, window] of [["primary", limit.rate_limit?.primary_window], ["secondary", limit.rate_limit?.secondary_window]] as const) {
-          const metric = parseWindow(window, `additional-${index}-${position}`, `Codex ${position}`);
+          const metric = parseWindow(window, `additional-${index}-${position}`);
           if (metric) metrics.push({ ...metric, label: `${name} · ${metric.label.replace(/^Codex /, "")}` });
         }
       }
